@@ -3,13 +3,38 @@ import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { Link } from "react-router-dom";
 
-
 export const Hero: React.FC = () => {
   return (
     <section className="relative overflow-hidden bg-gradient-to-r from-primary-900 to-primary-800 text-white">
+      {/* Fondo opaco con imagen */}
       <div className="absolute inset-0 opacity-20">
         <div className="absolute inset-0 bg-[url('https://img.heroui.chat/image/car?w=1200&h=800&u=1')] bg-cover bg-center"></div>
       </div>
+
+      {/* Imágenes flotantes */}
+      <img
+        src="/tire.png"
+        alt="Motor"
+        className="absolute top-10 left-10 w-20 md:w-32 animate-float"
+      />
+      <img
+        src="moto.png"
+        alt="Aceite"
+        className="absolute bottom-20 right-20 w-16 md:w-28 animate-float-slow"
+      />
+      <img
+        src="car.png"
+        alt="Llanta"
+        className="absolute top-1/2 left-1/2 w-24 md:w-36 transform -translate-x-1/2 -translate-y-1/2 animate-float-reverse"
+      />
+      <img
+        src="car.png"
+        alt="Repuesto"
+        className="absolute bottom-32 right-1/3 w-20 md:w-28 animate-float"
+      />
+
+
+      {/* Contenido principal */}
       <div className="container mx-auto px-4 py-16 md:py-24 relative z-10">
         <div className="max-w-3xl">
           <h1 className="text-3xl md:text-5xl font-bold mb-4">
@@ -22,16 +47,16 @@ export const Hero: React.FC = () => {
           </p>
           <div className="flex flex-wrap gap-4">
             <Link to="/Productos">
-            <Button
-              color="default"
-              size="lg"
-              className="bg-white text-primary-800 font-medium"
-              endContent={<Icon icon="lucide:arrow-right" />}
-            >
-              Ver Productos
-            </Button>
+              <Button
+                color="default"
+                size="lg"
+                className="bg-white text-primary-800 font-medium"
+                endContent={<Icon icon="lucide:arrow-right" />}
+              >
+                Ver Productos
+              </Button>
             </Link>
-            
+
             <Link to="/ofertas">
               <Button
                 variant="bordered"

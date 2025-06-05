@@ -79,9 +79,9 @@ export const Footer: React.FC = () => {
               © {new Date().getFullYear()} Andres forero. Todos los derechos reservados.
             </p>
             <div className="flex items-center space-x-4 mt-4 md:mt-0">
-              <img src="https://img.heroui.chat/image/finance?w=40&h=25&u=1" alt="Visa" className="h-6" />
-              <img src="https://img.heroui.chat/image/finance?w=40&h=25&u=2" alt="Mastercard" className="h-6" />
-              <img src="https://img.heroui.chat/image/finance?w=40&h=25&u=3" alt="PayPal" className="h-6" />
+              <img src="/visa.png" alt="Visa" className="h-6" />
+              <img src="mastercard.png" alt="Mastercard" className="h-6" />
+              <img src="paypal.png" alt="PayPal" className="h-6" />
             </div>
           </div>
         </div>
