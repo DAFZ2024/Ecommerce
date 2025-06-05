@@ -20,7 +20,7 @@ export const Hero: React.FC = () => {
       <img
         src="moto.png"
         alt="Aceite"
-        className="absolute bottom-20 right-20 w-16 md:w-28 animate-float-slow"
+        className="absolute bottom-20 right-40 w-16 md:w-28 animate-float-slow"
       />
       <img
         src="car.png"
@@ -28,9 +28,9 @@ export const Hero: React.FC = () => {
         className="absolute top-1/2 left-1/2 w-24 md:w-36 transform -translate-x-1/2 -translate-y-1/2 animate-float-reverse"
       />
       <img
-        src="car.png"
+        src="tool.png"
         alt="Repuesto"
-        className="absolute bottom-32 right-1/3 w-20 md:w-28 animate-float"
+        className="absolute bottom-70 right-80 w-40 md:w-40 animate-float"
       />
 
 

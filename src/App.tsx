@@ -19,14 +19,17 @@ import { OffersPage } from "./pages/OffersPage";
 
 
 export interface Product {
-  id: number;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  image: string;
-  category: string;
-  rating: number;
-  isOnSale?: boolean;
+  id_producto: number;
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  stock: number;
+  puntuacion: number;
+  imagen_url: string;
+  id_categoria: number;
+  nombre_categoria: string;
+  en_oferta: boolean;
+  descuento: number;
 }
 
 function MainHome({
