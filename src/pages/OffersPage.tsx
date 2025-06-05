@@ -1,46 +1,29 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardBody, CardFooter, Button, Chip, Progress } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { Product } from "../App";
-
-const specialOffers: Product[] = [
-  {
-    id: 5,
-    name: "Kit Completo de Aceite y Filtros",
-    price: 49.99,
-    originalPrice: 79.99,
-    image: "https://img.heroui.chat/image/car?w=400&h=300&u=14",
-    category: "Kits",
-    rating: 4.9,
-    isOnSale: true,
-  },
-  {
-    id: 6,
-    name: "Aceite Sintético Premium 5W-40",
-    price: 27.99,
-    originalPrice: 39.99,
-    image: "https://img.heroui.chat/image/car?w=400&h=300&u=15",
-    category: "Aceites para Autos",
-    rating: 4.7,
-    isOnSale: true,
-  },
-  {
-    id: 7,
-    name: "Set de Herramientas para Motocicletas",
-    price: 45.50,
-    originalPrice: 65.99,
-    image: "https://img.heroui.chat/image/car?w=400&h=300&u=16",
-    category: "Herramientas",
-    rating: 4.6,
-    isOnSale: true,
-  },
-];
 
 interface OffersPageProps {
   addToCart: (product: Product) => void;
 }
 
 export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
+  const [offers, setOffers] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("http://localhost:3001/api/productos/ofertas")
+      .then((res) => res.json())
+      .then((data) => {
+        setOffers(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error al cargar ofertas:", err);
+        setLoading(false);
+      });
+  }, []);
+
   return (
     <section className="py-12 px-4 bg-gradient-to-br from-primary-50 to-primary-100 min-h-screen">
       <div className="container mx-auto">
@@ -49,11 +32,15 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
           Encuentra descuentos exclusivos por tiempo limitado
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {specialOffers.map((product) => (
-            <OfferCard key={product.id} product={product} addToCart={addToCart} />
-          ))}
-        </div>
+        {loading ? (
+          <p className="text-center">Cargando ofertas...</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {offers.map((product) => (
+              <OfferCard key={product.id_producto} product={product} addToCart={addToCart} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -65,21 +52,19 @@ interface OfferCardProps {
 }
 
 const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
-  const discountPercentage = product.originalPrice
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
-    : 0;
+  const discountPercentage = product.descuento ?? 0;
 
-  const stockLeft = 5 + Math.floor(Math.random() * 15);
-  const stockPercentage = (stockLeft / 20) * 100;
+  const stockLeft = product.stock ?? 10;
+  const stockPercentage = Math.min((stockLeft / 20) * 100, 100);
 
   return (
     <Card className="border border-default-200">
       <CardBody className="p-0 overflow-hidden">
-        <div className="relative h-48 overflow-hidden">
+        <div className="relative h-48 bg-white flex items-center justify-center">
           <img
-            src={product.image}
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform hover:scale-105 duration-300"
+            src={`http://localhost:3001${product.imagen_url}`}
+            alt={product.nombre}
+            className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
           />
           {discountPercentage > 0 && (
             <Chip color="danger" className="absolute top-2 left-2 font-medium" size="sm">
@@ -88,16 +73,16 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
           )}
         </div>
         <div className="p-4">
-          <h3 className="font-medium text-base mb-1">{product.name}</h3>
+          <h3 className="font-medium text-base mb-1">{product.nombre}</h3>
           <div className="flex items-center mb-2">
             <Icon icon="lucide:star" className="text-amber-500 text-sm" />
-            <span className="text-sm ml-1">{product.rating}</span>
+            <span className="text-sm ml-1">{product.puntuacion}</span>
           </div>
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-primary font-semibold">${product.price.toFixed(2)}</p>
-            {product.originalPrice && (
+            <p className="text-primary font-semibold">${Number(product.precio).toFixed(2)}</p>
+            {discountPercentage > 0 && (
               <p className="text-default-400 text-sm line-through">
-                ${product.originalPrice.toFixed(2)}
+                ${(product.precio / (1 - discountPercentage / 100)).toFixed(2)}
               </p>
             )}
           </div>
@@ -128,3 +113,4 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
     </Card>
   );
 };
+

@@ -10,6 +10,7 @@ interface FeaturedProductsProps {
 
 export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ addToCart }) => {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     axios
@@ -17,6 +18,8 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ addToCart })
       .then((res) => setFeaturedProducts(res.data))
       .catch((err) => console.error("Error al cargar productos destacados:", err));
   }, []);
+
+  const visibleProducts = showAll ? featuredProducts : featuredProducts.slice(0, 4);
 
   return (
     <section className="py-12 px-4">
@@ -26,20 +29,37 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ addToCart })
             <h2 className="text-2xl md:text-3xl font-bold mb-2">Productos Destacados</h2>
             <p className="text-default-500">Los productos más populares entre nuestros clientes</p>
           </div>
-          <Button 
-            variant="light" 
-            color="primary" 
-            endContent={<Icon icon="lucide:arrow-right" />}
-          >
-            Ver todos
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {featuredProducts.map((product) => (
+          {visibleProducts.map((product) => (
             <ProductCard key={product.id_producto} product={product} addToCart={addToCart} />
           ))}
         </div>
+
+        {featuredProducts.length > 4 && (
+          <div className="flex justify-center mt-6">
+            {!showAll ? (
+              <Button
+                variant="solid"
+                color="primary"
+                endContent={<Icon icon="lucide:arrow-down" />}
+                onClick={() => setShowAll(true)}
+              >
+                Ver todos
+              </Button>
+            ) : (
+              <Button
+                variant="light"
+                color="primary"
+                endContent={<Icon icon="lucide:arrow-up" />}
+                onClick={() => setShowAll(false)}
+              >
+                Mostrar menos
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -54,15 +74,15 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
   return (
     <Card className="border border-default-200">
       <CardBody className="p-0 overflow-hidden">
-        <div className="relative h-48 overflow-hidden">
+        <div className="relative h-48 bg-white flex items-center justify-center">
           <img
-            src={product.imagen_url}
+            src={`http://localhost:3001${product.imagen_url}`}
             alt={product.nombre}
-            className="w-full h-full object-cover transition-transform hover:scale-105 duration-300"
+            className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
           />
-          <Chip 
-            color="primary" 
-            variant="flat" 
+          <Chip
+            color="primary"
+            variant="flat"
             className="absolute top-2 left-2"
             size="sm"
           >
@@ -81,9 +101,9 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
         </div>
       </CardBody>
       <CardFooter className="pt-0">
-        <Button 
-          color="primary" 
-          variant="flat" 
+        <Button
+          color="primary"
+          variant="flat"
           fullWidth
           onPress={() => addToCart(product)}
           startContent={<Icon icon="lucide:shopping-cart" />}

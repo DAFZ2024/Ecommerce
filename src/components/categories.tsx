@@ -1,6 +1,17 @@
-import React from "react";
-import { Card, CardBody } from "@heroui/react";
+import React, { useState } from "react";
+import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import axios from "axios";
+
+interface Product {
+  id_producto: number;
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  puntuacion: number;
+  imagen_url: string;
+  nombre_categoria: string;
+}
 
 const categories = [
   {
@@ -48,18 +59,45 @@ const categories = [
 ];
 
 export const Categories: React.FC = () => {
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const handleCategoryClick = async (categoryId: number) => {
+    if (selectedCategoryId === categoryId) {
+      // Si el mismo botón se clickea, ocultamos productos
+      setSelectedCategoryId(null);
+      setProducts([]);
+      return;
+    }
+    setSelectedCategoryId(categoryId);
+    setLoading(true);
+    try {
+      // Cambia la URL si es necesario para tu backend
+      const res = await axios.get<Product[]>(`http://localhost:3001/api/productos/categoria/${categoryId}`);
+      setProducts(res.data);
+    } catch (error) {
+      console.error("Error cargando productos por categoría:", error);
+      setProducts([]);
+    }
+    setLoading(false);
+  };
+
   return (
     <section className="py-12 px-4 bg-content1">
       <div className="container mx-auto">
         <h2 className="text-2xl md:text-3xl font-bold mb-2 text-center">Categorías Populares</h2>
         <p className="text-default-500 text-center mb-8">Explora nuestras categorías más buscadas</p>
-        
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-10">
           {categories.map((category) => (
-            <Card 
-              key={category.id} 
-              isPressable 
-              className="border border-default-200 transition-transform hover:scale-105"
+            <Card
+              key={category.id}
+              isPressable
+              className={`border border-default-200 transition-transform hover:scale-105 cursor-pointer ${
+                selectedCategoryId === category.id ? "border-primary bg-primary-100" : ""
+              }`}
+              onClick={() => handleCategoryClick(category.id)}
             >
               <CardBody className="flex flex-col items-center justify-center p-6 text-center">
                 <div className={`w-14 h-14 rounded-full ${category.bgColor} flex items-center justify-center mb-4`}>
@@ -70,6 +108,52 @@ export const Categories: React.FC = () => {
             </Card>
           ))}
         </div>
+
+        {/* Mostrar productos de la categoría seleccionada */}
+        {loading && <p className="text-center text-default-500">Cargando productos...</p>}
+        {!loading && products.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {products.map((product) => (
+              <Card key={product.id_producto} className="border border-default-200">
+                <CardBody className="p-0 overflow-hidden">
+                  <div className="relative h-48 bg-white flex items-center justify-center">
+                    <img
+                      src={`http://localhost:3001${product.imagen_url}`}
+                      alt={product.nombre}
+                      className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
+                    />
+                    <Chip color="primary" variant="flat" className="absolute top-2 left-2" size="sm">
+                      {product.nombre_categoria}
+                    </Chip>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-medium text-base mb-1 line-clamp-2">{product.nombre}</h3>
+                    <div className="flex items-center mb-2">
+                      <Icon icon="lucide:star" className="text-amber-500 text-sm" />
+                      <span className="text-sm ml-1">{product.puntuacion}</span>
+                    </div>
+                    <p className="text-primary font-semibold">${Number(product.precio).toFixed(2)}</p>
+                  </div>
+                </CardBody>
+                <CardFooter className="pt-0">
+                  <Button
+                    color="primary"
+                    variant="flat"
+                    fullWidth
+                    onPress={() => alert(`Añadido al carrito: ${product.nombre}`)}
+                    startContent={<Icon icon="lucide:shopping-cart" />}
+                  >
+                    Añadir al Carrito
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {!loading && selectedCategoryId && products.length === 0 && (
+          <p className="text-center text-default-500">No hay productos para esta categoría.</p>
+        )}
       </div>
     </section>
   );
