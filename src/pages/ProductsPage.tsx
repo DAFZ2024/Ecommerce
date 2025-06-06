@@ -2,6 +2,11 @@ import React, { useState, useEffect } from "react";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import axios from "axios";
+import { Product } from "../App"; // Importar la interfaz Product
+
+interface ProductsPageProps {
+  addToCart: (product: Product) => void; // Agregar prop addToCart
+}
 
 const categories = [
   { id: 1, name: "Aceites para Motos", icon: "lucide:droplet", color: "text-blue-500", bgColor: "bg-blue-100" },
@@ -17,8 +22,8 @@ const categories = [
   { id: 10, name: "Electrónica", icon: "lucide:cpu", color: "text-indigo-500", bgColor: "bg-indigo-100" },
 ];
 
-export const ProductsPage: React.FC = () => {
-  const [products, setProducts] = useState<any[]>([]);
+export const ProductsPage: React.FC<ProductsPageProps> = ({ addToCart }) => {
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +34,7 @@ export const ProductsPage: React.FC = () => {
     }
     setLoading(true);
     axios
-      .get(`http://localhost:3001/api/productos/categoria/${selectedCategoryId}`)
+      .get<Product[]>(`http://localhost:3001/api/productos/categoria/${selectedCategoryId}`)
       .then((res) => setProducts(res.data))
       .catch((err) => {
         console.error(err);
@@ -44,6 +49,18 @@ export const ProductsPage: React.FC = () => {
       setProducts([]);
     } else {
       setSelectedCategoryId(id);
+    }
+  };
+
+  const handleAddToCart = (product: Product) => {
+    try {
+      console.log("🛒 Agregando producto desde página de productos:", product);
+      addToCart(product);
+      // Opcional: mostrar una notificación de éxito
+      //alert(`✅ ${product.nombre} agregado al carrito`);
+    } catch (error) {
+      console.error("❌ Error al agregar producto al carrito:", error);
+      alert("Error al agregar el producto al carrito");
     }
   };
 
@@ -104,7 +121,7 @@ export const ProductsPage: React.FC = () => {
                     color="primary"
                     variant="flat"
                     fullWidth
-                    onPress={() => alert(`Añadido al carrito: ${product.nombre}`)}
+                    onPress={() => handleAddToCart(product)}
                     startContent={<Icon icon="lucide:shopping-cart" />}
                   >
                     Añadir al Carrito

@@ -132,19 +132,178 @@ app.post('/api/contactos', (req, res) => {
   });
 });
 
-// Supongamos que tienes una conexión a la base de datos llamada `connection`
 app.get("/api/productos/buscar", (req, res) => {
-  const query = req.query.query?.toLowerCase() || ""; // Obtiene el texto de búsqueda de la URL
+  const query = req.query.query?.toLowerCase() || "";
   const likeQuery = `%${query}%`;
 
-  // Consulta SQL para buscar productos por nombre o descripción que contengan el texto
-  const sql = `SELECT * FROM productos WHERE LOWER(nombre) LIKE ? OR LOWER(descripcion) LIKE ?`;
+  const sql = `
+    SELECT 
+      p.*, 
+      c.nombre_categoria 
+    FROM productos p
+    JOIN categorias c ON p.id_categoria = c.id_categoria
+    WHERE LOWER(p.nombre) LIKE ? OR LOWER(p.descripcion) LIKE ?
+  `;
 
-  connection.query(sql, [likeQuery, likeQuery], (error, results) => {
-    if (error) return res.status(500).json({ error: "Error en la base de datos" });
-    res.json(results); // Devuelve los productos encontrados
+  db.query(sql, [likeQuery, likeQuery], (error, results) => {
+    if (error) {
+      console.error("❌ Error al buscar productos:", error);
+      return res.status(500).json({ error: "Error en la base de datos" });
+    }
+    res.json(results);
   });
 });
+
+// Obtener detalle de un producto por ID
+app.get("/api/productos/:id", (req, res) => {
+  const { id } = req.params;
+
+  const sql = `
+    SELECT 
+      p.*, 
+      c.nombre_categoria 
+    FROM productos p
+    JOIN categorias c ON p.id_categoria = c.id_categoria
+    WHERE p.id_producto = ?
+    LIMIT 1
+  `;
+
+  db.query(sql, [id], (error, results) => {
+    if (error) {
+      console.error("❌ Error al obtener el producto:", error);
+      return res.status(500).json({ error: "Error en la base de datos" });
+    }
+
+    if (results.length === 0) {
+      return res.status(404).json({ error: "Producto no encontrado" });
+    }
+
+    res.json(results[0]);
+  });
+});
+
+
+
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || "secreto123"; // Guarda esto en tu .env en producción
+
+// 📌 REGISTRO de usuario
+app.post("/api/auth/register", async (req, res) => {
+  const { nombre_completo, correo, contrasena, direccion, telefono } = req.body;
+
+  if (!nombre_completo || !correo || !contrasena) {
+    return res.status(400).json({ error: "Faltan campos obligatorios" });
+  }
+
+  try {
+    // Verificar si el usuario ya existe
+    const checkSql = `SELECT id_usuario FROM usuarios WHERE correo = ?`;
+    db.query(checkSql, [correo], async (err, results) => {
+      if (err) {
+        console.error("❌ Error al verificar usuario:", err);
+        return res.status(500).json({ error: "Error interno" });
+      }
+
+      if (results.length > 0) {
+        return res.status(409).json({ error: "El correo ya está registrado" });
+      }
+
+      // Encriptar contraseña
+      const hashedPassword = await bcrypt.hash(contrasena, 10);
+
+      const insertSql = `
+        INSERT INTO usuarios (nombre_completo, correo, contrasena, direccion, telefono, rol)
+        VALUES (?, ?, ?, ?, ?, 'cliente')
+      `;
+
+      db.query(insertSql, [nombre_completo, correo, hashedPassword, direccion, telefono], (err, result) => {
+        if (err) {
+          console.error("❌ Error al registrar usuario:", err);
+          return res.status(500).json({ error: "Error al crear usuario" });
+        }
+
+        res.status(201).json({ message: "Usuario registrado exitosamente", id_usuario: result.insertId });
+      });
+    });
+  } catch (err) {
+    console.error("❌ Error en el registro:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔐 LOGIN de usuario
+app.post("/api/auth/login", (req, res) => {
+  const { correo, contrasena } = req.body;
+
+  if (!correo || !contrasena) {
+    return res.status(400).json({ error: "Correo y contraseña son obligatorios" });
+  }
+
+  const sql = `SELECT * FROM usuarios WHERE correo = ?`;
+
+  db.query(sql, [correo], async (err, results) => {
+    if (err) {
+      console.error("❌ Error en login:", err);
+      return res.status(500).json({ error: "Error interno" });
+    }
+
+    if (results.length === 0) {
+      return res.status(401).json({ error: "Credenciales incorrectas" });
+    }
+
+    const user = results[0];
+    const match = await bcrypt.compare(contrasena, user.contrasena);
+
+    if (!match) {
+      return res.status(401).json({ error: "Credenciales incorrectas" });
+    }
+
+    // Crear token JWT
+    const token = jwt.sign(
+      {
+        id_usuario: user.id_usuario,
+        correo: user.correo,
+        rol: user.rol,
+        nombre_completo: user.nombre_completo,
+      },
+      JWT_SECRET,
+      { expiresIn: "4h" }
+    );
+
+    res.json({
+      message: "Inicio de sesión exitoso",
+      token,
+      usuario: {
+        id_usuario: user.id_usuario,
+        nombre_completo: user.nombre_completo,
+        correo: user.correo,
+        rol: user.rol,
+      }
+    });
+  });
+});
+
+
+app.get("/api/auth/perfil", (req, res) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Token no proporcionado" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ usuario: decoded });
+  } catch (err) {
+    res.status(403).json({ error: "Token inválido o expirado" });
+  }
+});
+
+
 
 
 // Levantar el servidor

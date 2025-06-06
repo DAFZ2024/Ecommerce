@@ -2,15 +2,10 @@ import React, { useState } from "react";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import axios from "axios";
+import { Product } from "../App"; // Importar la interfaz Product
 
-interface Product {
-  id_producto: number;
-  nombre: string;
-  descripcion: string;
-  precio: number;
-  puntuacion: number;
-  imagen_url: string;
-  nombre_categoria: string;
+interface CategoriesProps {
+  addToCart: (product: Product) => void; // Agregar prop addToCart
 }
 
 const categories = [
@@ -58,7 +53,7 @@ const categories = [
   },
 ];
 
-export const Categories: React.FC = () => {
+export const Categories: React.FC<CategoriesProps> = ({ addToCart }) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,6 +76,18 @@ export const Categories: React.FC = () => {
       setProducts([]);
     }
     setLoading(false);
+  };
+
+  const handleAddToCart = (product: Product) => {
+    try {
+      console.log("🛒 Agregando producto desde categorías:", product);
+      addToCart(product);
+      // Opcional: mostrar una notificación de éxito
+      //alert(`✅ ${product.nombre} agregado al carrito`);
+    } catch (error) {
+      console.error("❌ Error al agregar producto al carrito:", error);
+      alert("Error al agregar el producto al carrito");
+    }
   };
 
   return (
@@ -140,7 +147,7 @@ export const Categories: React.FC = () => {
                     color="primary"
                     variant="flat"
                     fullWidth
-                    onPress={() => alert(`Añadido al carrito: ${product.nombre}`)}
+                    onPress={() => handleAddToCart(product)}
                     startContent={<Icon icon="lucide:shopping-cart" />}
                   >
                     Añadir al Carrito

@@ -14,8 +14,11 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ addToCart })
 
   useEffect(() => {
     axios
-      .get("/api/productos/destacados")
-      .then((res) => setFeaturedProducts(res.data))
+      .get("http://localhost:3001/api/productos/destacados") // ✅ URL corregida
+      .then((res) => {
+        console.log("Productos destacados:", res.data); // ✅ Debug
+        setFeaturedProducts(res.data);
+      })
       .catch((err) => console.error("Error al cargar productos destacados:", err));
   }, []);
 
@@ -71,6 +74,11 @@ interface ProductCardProps {
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
+  const handleAddToCart = () => {
+    console.log("Añadiendo producto al carrito:", product); // ✅ Debug
+    addToCart(product);
+  };
+
   return (
     <Card className="border border-default-200">
       <CardBody className="p-0 overflow-hidden">
@@ -105,7 +113,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
           color="primary"
           variant="flat"
           fullWidth
-          onPress={() => addToCart(product)}
+          onClick={handleAddToCart} // ✅ Función separada para debug
           startContent={<Icon icon="lucide:shopping-cart" />}
         >
           Añadir al Carrito

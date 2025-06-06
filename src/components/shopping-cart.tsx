@@ -11,21 +11,27 @@ import {
 import { Icon } from "@iconify/react";
 import { Product } from "../App";
 
+export interface CartItem extends Product {
+  quantity: number;
+}
+
 interface ShoppingCartProps {
   isOpen: boolean;
   onClose: () => void;
-  items: Product[];
+  items: CartItem[];
   removeItem: (id: number) => void;
+  updateQuantity: (id: number, quantity: number) => void; // ✅ Agregado
 }
 
 export const ShoppingCart: React.FC<ShoppingCartProps> = ({ 
   isOpen, 
   onClose, 
   items,
-  removeItem
+  removeItem,
+  updateQuantity, // ✅ Agregado aquí también
 }) => {
-  // Calculate values directly without hooks
-  const subtotal = items.reduce((sum, item) => sum + item.price, 0);
+  // Sumar precios de los productos en el carrito
+  const subtotal = items.reduce((sum, item) => sum + (Number(item.precio) * item.quantity), 0);
   const shipping = items.length > 0 ? 5.99 : 0;
   const total = subtotal + shipping;
 
@@ -55,29 +61,39 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
           ) : (
             <div className="space-y-4">
               {items.map((item) => (
-                <div key={item.id} className="flex border-b border-default-200 pb-4">
+                <div key={item.id_producto} className="flex border-b border-default-200 pb-4">
                   <div className="w-20 h-20 rounded overflow-hidden flex-shrink-0">
                     <Image
-                      src={item.image}
-                      alt={item.name}
+                      src={`http://localhost:3001${item.imagen_url}`} // ✅ URL corregida
+                      alt={item.nombre}
                       className="w-full h-full object-cover"
                       removeWrapper
                     />
                   </div>
                   <div className="ml-4 flex-grow">
-                    <h4 className="font-medium">{item.name}</h4>
-                    <p className="text-default-500 text-sm">{item.category}</p>
+                    <h4 className="font-medium">{item.nombre}</h4>
+                    <p className="text-default-500 text-sm">{item.nombre_categoria}</p>
                     <div className="flex justify-between items-center mt-2">
-                      <span className="font-semibold">${item.price.toFixed(2)}</span>
+                      <span className="font-semibold">${Number(item.precio).toFixed(2)}</span>
                       <Button 
                         isIconOnly 
                         size="sm" 
                         variant="light" 
                         color="danger"
-                        onPress={() => removeItem(item.id)}
+                        onPress={() => removeItem(item.id_producto)}
                       >
                         <Icon icon="lucide:trash-2" />
                       </Button>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-sm mr-2">Cantidad:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(item.id_producto, parseInt(e.target.value, 10))}
+                        className="w-16 border border-gray-300 rounded px-1"
+                      />
                     </div>
                   </div>
                 </div>
