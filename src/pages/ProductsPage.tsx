@@ -16,8 +16,8 @@ const categories = [
   { id: 5, name: "Neumáticos", icon: "lucide:circle-dot", color: "text-purple-500", bgColor: "bg-purple-100" },
   { id: 6, name: "Herramientas", icon: "lucide:wrench", color: "text-gray-500", bgColor: "bg-gray-100" },
   // Nuevas categorías
-  { id: 7, name: "Lubricantes", icon: "lucide:oil-can", color: "text-yellow-600", bgColor: "bg-yellow-100" },
-  { id: 8, name: "Accesorios", icon: "lucide:tool", color: "text-pink-500", bgColor: "bg-pink-100" },
+  { id: 7, name: "Lubricantes", icon: "lucide:glass-water", color: "text-yellow-600", bgColor: "bg-yellow-100" },
+  { id: 8, name: "Accesorios", icon: "lucide:store", color: "text-pink-500", bgColor: "bg-pink-100" },
   { id: 9, name: "Repuestos", icon: "lucide:settings", color: "text-cyan-500", bgColor: "bg-cyan-100" },
   { id: 10, name: "Electrónica", icon: "lucide:cpu", color: "text-indigo-500", bgColor: "bg-indigo-100" },
 ];

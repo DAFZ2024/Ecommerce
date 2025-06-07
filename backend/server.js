@@ -303,7 +303,151 @@ app.get("/api/auth/perfil", (req, res) => {
   }
 });
 
+// apis crud
 
+
+
+// Obtener todos los usuarios
+app.get('/api/usuarios', (req, res) => {
+  db.query('SELECT id_usuario, nombre_completo, correo, rol, direccion, telefono FROM usuarios', (err, results) => {
+    if (err) return res.status(500).json({ error: 'Error al obtener usuarios' });
+    res.json(results);
+  });
+});
+
+// Crear un nuevo usuario
+app.post('/api/usuarios', async (req, res) => {
+  const { nombre_completo, correo, contrasena, rol = 'cliente', direccion, telefono } = req.body;
+
+  if (!nombre_completo || !correo || !contrasena) {
+    return res.status(400).json({ error: "Faltan campos obligatorios" });
+  }
+
+  const hashedPassword = await bcrypt.hash(contrasena, 10);
+
+  const sql = `INSERT INTO usuarios (nombre_completo, correo, contrasena, rol, direccion, telefono)
+               VALUES (?, ?, ?, ?, ?, ?)`;
+
+  db.query(sql, [nombre_completo, correo, hashedPassword, rol, direccion, telefono], (err, result) => {
+    if (err) return res.status(500).json({ error: 'Error al crear usuario' });
+    res.status(201).json({ message: 'Usuario creado', id_usuario: result.insertId });
+  });
+});
+
+// Actualizar usuario
+app.put('/api/usuarios/:id', (req, res) => {
+  const { nombre_completo, correo, rol, direccion, telefono } = req.body;
+  const id = req.params.id;
+
+  const sql = `UPDATE usuarios SET nombre_completo = ?, correo = ?, rol = ?, direccion = ?, telefono = ? WHERE id_usuario = ?`;
+  db.query(sql, [nombre_completo, correo, rol, direccion, telefono, id], (err) => {
+    if (err) return res.status(500).json({ error: 'Error al actualizar usuario' });
+    res.json({ message: 'Usuario actualizado' });
+  });
+});
+
+// Eliminar usuario
+app.delete('/api/usuarios/:id', (req, res) => {
+  db.query('DELETE FROM usuarios WHERE id_usuario = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'Error al eliminar usuario' });
+    res.json({ message: 'Usuario eliminado' });
+  });
+});
+
+
+// Crear categoría
+app.post('/api/categorias', (req, res) => {
+  const { nombre_categoria } = req.body;
+
+  if (!nombre_categoria) return res.status(400).json({ error: 'Nombre requerido' });
+
+  db.query('INSERT INTO categorias (nombre_categoria) VALUES (?)', [nombre_categoria], (err, result) => {
+    if (err) return res.status(500).json({ error: 'Error al crear categoría' });
+    res.status(201).json({ message: 'Categoría creada', id_categoria: result.insertId });
+  });
+});
+
+// Actualizar categoría
+app.put('/api/categorias/:id', (req, res) => {
+  const { nombre_categoria } = req.body;
+
+  db.query('UPDATE categorias SET nombre_categoria = ? WHERE id_categoria = ?', [nombre_categoria, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'Error al actualizar categoría' });
+    res.json({ message: 'Categoría actualizada' });
+  });
+});
+
+// Eliminar categoría
+app.delete('/api/categorias/:id', (req, res) => {
+  db.query('DELETE FROM categorias WHERE id_categoria = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'Error al eliminar categoría' });
+    res.json({ message: 'Categoría eliminada' });
+  });
+});
+
+
+// Obtener todos los productos
+app.get('/api/productos', (req, res) => {
+  const sql = `
+    SELECT p.*, c.nombre_categoria 
+    FROM productos p
+    JOIN categorias c ON p.id_categoria = c.id_categoria
+    ORDER BY p.id_producto DESC
+  `;
+
+  db.query(sql, (err, results) => {
+    if (err) return res.status(500).json({ error: 'Error al obtener productos' });
+    res.json(results);
+  });
+});
+
+// Crear nuevo producto
+app.post('/api/productos', (req, res) => {
+  const { nombre, descripcion, precio, stock, puntuacion = 0.0, imagen_url, id_categoria, en_oferta = false, descuento = 0.0 } = req.body;
+
+  const sql = `
+    INSERT INTO productos 
+    (nombre, descripcion, precio, stock, puntuacion, imagen_url, id_categoria, en_oferta, descuento)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `;
+
+  db.query(sql, [nombre, descripcion, precio, stock, puntuacion, imagen_url, id_categoria, en_oferta, descuento], (err, result) => {
+    if (err) return res.status(500).json({ error: 'Error al crear producto' });
+    res.status(201).json({ message: 'Producto creado', id_producto: result.insertId });
+  });
+});
+
+// Actualizar producto
+app.put('/api/productos/:id', (req, res) => {
+  const { nombre, descripcion, precio, stock, puntuacion, imagen_url, id_categoria, en_oferta, descuento } = req.body;
+
+  const sql = `
+    UPDATE productos 
+    SET nombre = ?, descripcion = ?, precio = ?, stock = ?, puntuacion = ?, imagen_url = ?, id_categoria = ?, en_oferta = ?, descuento = ?
+    WHERE id_producto = ?
+  `;
+
+  db.query(sql, [nombre, descripcion, precio, stock, puntuacion, imagen_url, id_categoria, en_oferta, descuento, req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'Error al actualizar producto' });
+    res.json({ message: 'Producto actualizado' });
+  });
+});
+
+// Eliminar producto
+app.delete('/api/productos/:id', (req, res) => {
+  db.query('DELETE FROM productos WHERE id_producto = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: 'Error al eliminar producto' });
+    res.json({ message: 'Producto eliminado' });
+  });
+});
+
+app.get('/api/usuarios-rol/:rol', (req, res) => {
+  const rol = req.params.rol;
+  db.query('SELECT id_usuario, nombre_completo, correo, rol, direccion, telefono FROM usuarios WHERE rol = ?', [rol], (err, results) => {
+    if (err) return res.status(500).json({ error: 'Error al obtener usuarios' });
+    res.json(results);
+  });
+});
 
 
 // Levantar el servidor

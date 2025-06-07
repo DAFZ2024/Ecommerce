@@ -28,11 +28,16 @@ import { SpecialOffers } from "./components/special-offers";
 import { Testimonials } from "./components/testimonials";
 import { Footer } from "./components/footer";
 import { ShoppingCart } from "./components/shopping-cart";
+import { Benefits } from "./components/benefits";
+import { CallToAction } from "./components/CallToAction";
+import { MapPuntosVenta } from "./components/MapPuntosVenta";
 import { AuthPage } from "./pages/AuthPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ContactPage } from "./pages/ContactPage";
 import { OffersPage } from "./pages/OffersPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
+import CrudDashboard from './pages/CrudDashboard';
+
 
 export interface Product {
   id_producto: number;
@@ -56,9 +61,18 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
   return (
     <>
       <Hero />
+      <Benefits />
       <Categories addToCart={addToCart} />
-      <FeaturedProducts addToCart={addToCart} />
       <SpecialOffers addToCart={addToCart} />
+      <FeaturedProducts addToCart={addToCart} />
+      <CallToAction />
+      <h1 className="text-2xl md:text-3xl font-bold text-center mb-2">
+        Nuestros Puntos de Venta
+      </h1>
+      <p className="text-default-500 text-center mb-8">
+        Encuentra nuestras sucursales cerca de ti
+      </p>
+      <MapPuntosVenta />
       <Testimonials />
     </>
   );
@@ -174,6 +188,11 @@ function AppWrapper() {
               Contacto
             </Link>
           </NavbarItem>
+          <NavbarItem>
+            <Link as={RouterLink} to="/CrudDashboard">
+              Dashboard
+            </Link>
+          </NavbarItem>
         </NavbarContent>
         <NavbarContent justify="end">
           <NavbarItem className="hidden sm:flex relative">
@@ -266,6 +285,10 @@ function AppWrapper() {
           <Route
             path="/contacto"
             element={<ContactPage addToCart={addToCart} />}
+          />
+          <Route
+            path="/CrudDashboard"
+            element={<CrudDashboard/>}
           />
           <Route
             path="/ofertas"
