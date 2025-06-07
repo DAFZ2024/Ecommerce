@@ -20,7 +20,6 @@ import {
 } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { Toaster, toast } from "react-hot-toast";
-
 import { Hero } from "./components/hero";
 import { Categories } from "./components/categories";
 import { FeaturedProducts } from "./components/featured-products";
@@ -38,7 +37,6 @@ import { OffersPage } from "./pages/OffersPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
 import CrudDashboard from './pages/CrudDashboard';
 
-
 export interface Product {
   id_producto: number;
   nombre: string;
@@ -55,6 +53,14 @@ export interface Product {
 
 export interface CartItem extends Product {
   quantity: number;
+}
+
+// Interfaz para el usuario
+interface User {
+  id: number;
+  email: string;
+  nombre: string;
+  rol: string;
 }
 
 function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
@@ -78,6 +84,34 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
   );
 }
 
+// Función para decodificar el JWT y obtener la información del usuario
+const getUserFromToken = (token: string): User | null => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return {
+      id: payload.userId || payload.id,
+      email: payload.email,
+      nombre: payload.nombre,
+      rol: payload.rol
+    };
+  } catch (error) {
+    console.error('Error decodificando token:', error);
+    return null;
+  }
+};
+
+// Componente de ruta protegida para admin
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const token = localStorage.getItem("token");
+  const user = token ? getUserFromToken(token) : null;
+  
+  if (!user || user.rol !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 function AppWrapper() {
   const [isCartOpen, setIsCartOpen] = React.useState(false);
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
@@ -87,8 +121,17 @@ function AppWrapper() {
   const [isLoggedIn, setIsLoggedIn] = React.useState(() =>
     !!localStorage.getItem("token")
   );
+  const [user, setUser] = React.useState<User | null>(() => {
+    const token = localStorage.getItem("token");
+    return token ? getUserFromToken(token) : null;
+  });
 
   const navigate = useNavigate();
+
+  // Función para verificar si el usuario es admin
+  const isAdmin = () => {
+    return user && user.rol === 'admin';
+  };
 
   const addToCart = (product: Product) => {
     const productWithPrice = { ...product, precio: Number(product.precio) };
@@ -155,8 +198,18 @@ function AppWrapper() {
 
   const handleLoginSuccess = (token: string) => {
     localStorage.setItem("token", token);
+    const userData = getUserFromToken(token);
+    setUser(userData);
     setIsLoggedIn(true);
     toast.success("¡Bienvenido de nuevo!");
+    navigate("/");
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setIsLoggedIn(false);
+    setUser(null);
+    toast("Sesión cerrada", { icon: "👋" });
     navigate("/");
   };
 
@@ -188,11 +241,14 @@ function AppWrapper() {
               Contacto
             </Link>
           </NavbarItem>
-          <NavbarItem>
-            <Link as={RouterLink} to="/CrudDashboard">
-              Dashboard
-            </Link>
-          </NavbarItem>
+          {/* Solo mostrar Dashboard si el usuario es admin */}
+          {isAdmin() && (
+            <NavbarItem>
+              <Link as={RouterLink} to="/CrudDashboard">
+                Dashboard
+              </Link>
+            </NavbarItem>
+          )}
         </NavbarContent>
         <NavbarContent justify="end">
           <NavbarItem className="hidden sm:flex relative">
@@ -254,17 +310,26 @@ function AppWrapper() {
           </NavbarItem>
           <NavbarItem className="hidden sm:flex">
             {isLoggedIn ? (
-              <Button
-                color="danger"
-                onClick={() => {
-                  localStorage.removeItem("token");
-                  setIsLoggedIn(false);
-                  toast("Sesión cerrada", { icon: "👋" });
-                  navigate("/");
-                }}
-              >
-                Cerrar Sesión
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Mostrar nombre del usuario si está disponible */}
+                {user && (
+                  <span className="text-sm text-gray-600">
+                    Hola, {user.nombre}
+                    {isAdmin() && (
+                      <Badge color="warning" size="sm" className="ml-1">
+                        Admin
+                      </Badge>
+                    )}
+                  </span>
+                )}
+                <Button
+                  color="danger"
+                  size="sm"
+                  onClick={handleLogout}
+                >
+                  Cerrar Sesión
+                </Button>
+              </div>
             ) : (
               <Button as={RouterLink} to="/auth" color="primary" variant="flat">
                 <Icon icon="lucide:user" className="text-sm mr-1" />
@@ -286,9 +351,14 @@ function AppWrapper() {
             path="/contacto"
             element={<ContactPage addToCart={addToCart} />}
           />
+          {/* Ruta protegida para admin */}
           <Route
             path="/CrudDashboard"
-            element={<CrudDashboard/>}
+            element={
+              <AdminRoute>
+                <CrudDashboard/>
+              </AdminRoute>
+            }
           />
           <Route
             path="/ofertas"
@@ -326,4 +396,3 @@ export default function App() {
     </Router>
   );
 }
-
