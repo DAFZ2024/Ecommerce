@@ -28,14 +28,16 @@ import { Testimonials } from "./components/testimonials";
 import { Footer } from "./components/footer";
 import { ShoppingCart } from "./components/shopping-cart";
 import { Benefits } from "./components/benefits";
+import  ModernElegantCarousel from "./components/Slider";
 import { CallToAction } from "./components/CallToAction";
-import { MapPuntosVenta } from "./components/MapPuntosVenta";
+import  MapPuntosVenta  from "./components/MapPuntosVenta";
+import CompetitiveAdvantages from './components/CompetitiveAdvantages';
 import { AuthPage } from "./pages/AuthPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ContactPage } from "./pages/ContactPage";
 import { OffersPage } from "./pages/OffersPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
-import  Gracias  from "./pages/Gracias.tsx";
+import  Gracias  from "./pages/Gracias";
 import CrudDashboard from './pages/CrudDashboard';
 
 
@@ -72,7 +74,9 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
       <Benefits />
       <Categories addToCart={addToCart} />
       <SpecialOffers addToCart={addToCart} />
+      <ModernElegantCarousel />
       <FeaturedProducts addToCart={addToCart} />
+      <CompetitiveAdvantages/>
       <CallToAction />
       <h1 className="text-2xl md:text-3xl font-bold text-center mb-2">
         Nuestros Puntos de Venta

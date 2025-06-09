@@ -1,28 +1,43 @@
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
+const path = require('path'); // Agregar esta línea
 require('dotenv').config();
+
 //payu
 const payuRoutes = require('./routes/payu');
-
 const app = express();
 
-// Middlewares
+// apis routers
+// Importar el router de uploads
+const uploadsRouter = require("./routes/Uploads");
+
+const contactosRoutes = require('./routes/contactos');
+const carritosRoutes = require('./routes/carritos');
+const ordenesRoutes = require('./routes/ordenes');
+const pagosRoutes = require('./routes/pagos');
+
+// Middlewares (reorganizar para mejor orden)
 app.use(cors({
   origin: 'http://localhost:5173', // o el dominio de tu frontend
   credentials: true
 }));
-app.use(express.json());
 
-app.use(express.urlencoded({ extended: true }));
-app.use('/images', express.static(__dirname + '/public/images'));
+app.use(express.json()); // Para parsear JSON
+app.use(express.urlencoded({ extended: true })); // Para formularios
 
+// Servir archivos estáticos (imágenes)
+app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
-
-//payu
+// Registrar todas las rutas
+app.use('/api/contactos', contactosRoutes);
+app.use('/api/carritos', carritosRoutes);
+app.use('/api/ordenes', ordenesRoutes);
+app.use('/api/pagos', pagosRoutes);
 app.use('/api/payu', payuRoutes);
 
-
+// ¡ESTA ES LA LÍNEA QUE FALTABA!
+app.use('/api', uploadsRouter);
 
 // Conexión a la base de datos
 const db = mysql.createConnection({
@@ -32,7 +47,6 @@ const db = mysql.createConnection({
   database: process.env.DB_NAME,
   port: process.env.DB_PORT
 });
-
 
 db.connect(err => {
   if (err) {

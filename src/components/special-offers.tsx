@@ -14,9 +14,18 @@ export const SpecialOffers: React.FC<SpecialOffersProps> = ({ addToCart }) => {
   useEffect(() => {
     fetch("http://localhost:3001/api/productos/ofertas")
       .then((res) => res.json())
-      .then((data) => setOffers(data))
+      .then((data) => {
+        // Ordenar por descuento de mayor a menor
+        const sortedOffers = data.sort((a: Product, b: Product) => 
+          (b.descuento ?? 0) - (a.descuento ?? 0)
+        );
+        setOffers(sortedOffers);
+      })
       .catch((err) => console.error("Error cargando ofertas:", err));
   }, []);
+
+  const topOffers = offers.slice(0, 3);
+  const regularOffers = offers.slice(3, 6);
 
   return (
     <section className="py-12 px-4 bg-gradient-to-r from-primary-50 to-primary-100">
@@ -33,13 +42,164 @@ export const SpecialOffers: React.FC<SpecialOffersProps> = ({ addToCart }) => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {offers.slice(0, 6).map((product) => (
-            <OfferCard key={product.id_producto} product={product} addToCart={addToCart} />
-          ))}
-        </div>
+        {/* Top 3 ofertas destacadas */}
+        {topOffers.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-center gap-2 mb-6">
+              <Icon icon="lucide:zap" className="text-amber-500 text-xl animate-pulse" />
+              <h3 className="text-xl font-bold bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
+                ¡OFERTAS IMPERDIBLES!
+              </h3>
+              <Icon icon="lucide:zap" className="text-amber-500 text-xl animate-pulse" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {topOffers.map((product, index) => (
+                <FeaturedOfferCard 
+                  key={product.id_producto} 
+                  product={product} 
+                  addToCart={addToCart}
+                  rank={index + 1}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ofertas regulares */}
+        {regularOffers.length > 0 && (
+          <div>
+            <h3 className="text-lg font-semibold mb-4 text-center text-default-700">
+              Más Ofertas Disponibles
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {regularOffers.map((product) => (
+                <OfferCard key={product.id_producto} product={product} addToCart={addToCart} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </section>
+  );
+};
+
+interface FeaturedOfferCardProps {
+  product: Product;
+  addToCart: (product: Product) => void;
+  rank: number;
+}
+
+const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCart, rank }) => {
+  const discountPercentage = product.descuento || 0;
+  const stockLeft = product.stock;
+  const stockPercentage = Math.min((stockLeft / 20) * 100, 100);
+
+  const rankColors = {
+    1: "from-amber-400 to-amber-600",
+    2: "from-gray-300 to-gray-500", 
+    3: "from-amber-600 to-amber-800"
+  };
+
+  const rankIcons = {
+    1: "lucide:trophy",
+    2: "lucide:medal", 
+    3: "lucide:award"
+  };
+
+  const cardGradients = {
+    1: "from-amber-100 to-amber-200",
+    2: "from-gray-100 to-gray-200",
+    3: "from-orange-100 to-orange-200"
+  };
+
+  return (
+    <Card className="border-2 border-amber-300 shadow-xl relative overflow-hidden transform hover:scale-105 transition-all duration-300 hover:shadow-2xl">
+      {/* Efecto de brillo animado */}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-pulse duration-1500"></div>
+      
+      {/* Badge de ranking */}
+      <div className={`absolute top-2 right-2 w-7 h-7 bg-gradient-to-br ${rankColors[rank as keyof typeof rankColors]} rounded-full flex items-center justify-center z-10 shadow-lg`}>
+        <Icon icon={rankIcons[rank as keyof typeof rankIcons]} className="text-white text-xs" />
+      </div>
+
+      <CardBody className="p-0 overflow-hidden">
+        <div className={`relative h-48 bg-gradient-to-br ${cardGradients[rank as keyof typeof cardGradients]} flex items-center justify-center`}>
+          <img
+            src={`http://localhost:3001${product.imagen_url}`}
+            alt={product.nombre}
+            className="max-h-full max-w-full object-contain transition-transform hover:scale-110 duration-300"
+          />
+          <Chip 
+            color="danger" 
+            className="absolute top-2 left-2 font-bold text-white shadow-lg animate-pulse" 
+            size="md"
+          >
+            -{discountPercentage}% OFF
+          </Chip>
+        </div>
+        
+        <div className="p-4 bg-gradient-to-br from-white to-amber-50">
+          <h3 className="font-bold text-base mb-2 text-gray-800">{product.nombre}</h3>
+          
+          <div className="flex items-center mb-2">
+            <div className="flex">
+              {[...Array(5)].map((_, i) => (
+                <Icon 
+                  key={i}
+                  icon="lucide:star" 
+                  className={`text-sm ${i < Math.floor(product.puntuacion) ? 'text-amber-400' : 'text-gray-300'}`}
+                />
+              ))}
+            </div>
+            <span className="text-xs ml-1 font-medium">({product.puntuacion})</span>
+          </div>
+          
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-lg font-bold text-green-600">
+              ${Number(product.precio).toFixed(2)}
+            </p>
+            {discountPercentage > 0 && (
+              <div className="flex flex-col">
+                <p className="text-gray-500 text-xs line-through">
+                  ${(product.precio / (1 - discountPercentage / 100)).toFixed(2)}
+                </p>
+                <p className="text-green-600 text-xs font-semibold">
+                  Ahorras ${((product.precio / (1 - discountPercentage / 100)) - product.precio).toFixed(2)}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-2">
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-medium">Stock</span>
+              <span className="text-red-600 font-bold animate-pulse">
+                ¡{stockLeft} restantes!
+              </span>
+            </div>
+            <Progress
+              size="sm"
+              value={stockPercentage}
+              color={stockPercentage < 30 ? "danger" : "warning"}
+              className="h-1.5"
+            />
+          </div>
+        </div>
+      </CardBody>
+      
+      <CardFooter className="pt-0 bg-gradient-to-r from-amber-50 to-orange-50">
+        <Button
+          color="warning"
+          variant="solid"
+          fullWidth
+          onPress={() => addToCart(product)}
+          startContent={<Icon icon="lucide:shopping-cart" />}
+          className="font-bold text-white shadow-md hover:shadow-lg transition-shadow duration-300"
+        >
+          ¡AGREGAR YA!
+        </Button>
+      </CardFooter>
+    </Card>
   );
 };
 
@@ -54,7 +214,7 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
   const stockPercentage = Math.min((stockLeft / 20) * 100, 100);
 
   return (
-    <Card className="border border-default-200">
+    <Card className="border border-default-200 hover:shadow-lg transition-shadow duration-300">
       <CardBody className="p-0 overflow-hidden">
         <div className="relative h-48 bg-white flex items-center justify-center">
           <img
