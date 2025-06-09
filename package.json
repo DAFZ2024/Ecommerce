@@ -18,12 +18,14 @@
     "framer-motion": "^11.18.2",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",
+    "multer": "^2.0.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.6.2",
-    "source-map-js": "^1.2.1"
+    "source-map-js": "^1.2.1",
+    "sweetalert2": "^11.22.0"
   },
   "devDependencies": {
     "@babel/core": "^7.26.10",

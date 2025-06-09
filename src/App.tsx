@@ -35,7 +35,9 @@ import { ProductsPage } from "./pages/ProductsPage";
 import { ContactPage } from "./pages/ContactPage";
 import { OffersPage } from "./pages/OffersPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
+import  Gracias  from "./pages/Gracias.tsx";
 import CrudDashboard from './pages/CrudDashboard';
+
 
 export interface Product {
   id_producto: number;
@@ -55,9 +57,9 @@ export interface CartItem extends Product {
   quantity: number;
 }
 
-// Interfaz para el usuario
+// ✅ Interfaz para el usuario corregida
 interface User {
-  id: number;
+  id: number; // Se mapea desde userId del token
   email: string;
   nombre: string;
   rol: string;
@@ -84,26 +86,47 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
   );
 }
 
-// Función para decodificar el JWT y obtener la información del usuario
+// ✅ Función mejorada para decodificar el JWT
 const getUserFromToken = (token: string): User | null => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
+    console.log('🔍 Payload del token:', payload); // Debug
+    
     return {
-      id: payload.userId || payload.id,
-      email: payload.email,
-      nombre: payload.nombre,
+      id: payload.userId || payload.id_usuario || payload.id, // Probar múltiples campos
+      email: payload.email || payload.correo,
+      nombre: payload.nombre || payload.nombre_completo,
       rol: payload.rol
     };
   } catch (error) {
-    console.error('Error decodificando token:', error);
+    console.error('❌ Error decodificando token:', error);
     return null;
+  }
+};
+
+// ✅ Función para verificar si el token es válido
+const isTokenValid = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const now = Date.now() / 1000;
+    
+    // Verificar si el token ha expirado
+    if (payload.exp && payload.exp < now) {
+      console.warn('⚠️ Token expirado');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ Token inválido:', error);
+    return false;
   }
 };
 
 // Componente de ruta protegida para admin
 const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem("token");
-  const user = token ? getUserFromToken(token) : null;
+  const user = token && isTokenValid(token) ? getUserFromToken(token) : null;
   
   if (!user || user.rol !== 'admin') {
     return <Navigate to="/" replace />;
@@ -118,15 +141,40 @@ function AppWrapper() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Product[]>([]);
   const [showDropdown, setShowDropdown] = React.useState(false);
-  const [isLoggedIn, setIsLoggedIn] = React.useState(() =>
-    !!localStorage.getItem("token")
-  );
+  
+  // ✅ Estado mejorado para autenticación
+  const [isLoggedIn, setIsLoggedIn] = React.useState(() => {
+    const token = localStorage.getItem("token");
+    return token ? isTokenValid(token) : false;
+  });
+  
   const [user, setUser] = React.useState<User | null>(() => {
     const token = localStorage.getItem("token");
-    return token ? getUserFromToken(token) : null;
+    if (token && isTokenValid(token)) {
+      const userData = getUserFromToken(token);
+      console.log('👤 Usuario inicial cargado:', userData);
+      return userData;
+    }
+    return null;
   });
 
   const navigate = useNavigate();
+
+  // ✅ Efecto para validar token al cargar la app
+  React.useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      if (!isTokenValid(token)) {
+        console.warn('⚠️ Token inválido o expirado, limpiando sesión');
+        handleLogout();
+      } else {
+        const userData = getUserFromToken(token);
+        if (userData) {
+          console.log('✅ Usuario autenticado cargado:', userData);
+        }
+      }
+    }
+  }, []);
 
   // Función para verificar si el usuario es admin
   const isAdmin = () => {
@@ -196,22 +244,46 @@ function AppWrapper() {
     setIsCartOpen(true);
   };
 
+  // ✅ Función mejorada para manejar login exitoso
   const handleLoginSuccess = (token: string) => {
+    console.log('🔑 Token recibido en login:', token);
+    
+    if (!isTokenValid(token)) {
+      toast.error("Token inválido recibido");
+      return;
+    }
+    
     localStorage.setItem("token", token);
     const userData = getUserFromToken(token);
-    setUser(userData);
-    setIsLoggedIn(true);
-    toast.success("¡Bienvenido de nuevo!");
-    navigate("/");
+    
+    if (userData) {
+      console.log('✅ Datos de usuario extraídos:', userData);
+      setUser(userData);
+      setIsLoggedIn(true);
+      toast.success(`¡Bienvenido ${userData.nombre}!`);
+      navigate("/");
+    } else {
+      toast.error("Error al procesar datos de usuario");
+    }
   };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     setIsLoggedIn(false);
     setUser(null);
+    setCartItems([]); // Limpiar carrito al cerrar sesión
     toast("Sesión cerrada", { icon: "👋" });
     navigate("/");
   };
+
+  // ✅ Debug en consola del estado actual
+  React.useEffect(() => {
+    console.log('🔍 Estado actual:', {
+      isLoggedIn,
+      user,
+      hasToken: !!localStorage.getItem("token")
+    });
+  }, [isLoggedIn, user]);
 
   return (
     <>
@@ -309,19 +381,16 @@ function AppWrapper() {
             </Button>
           </NavbarItem>
           <NavbarItem className="hidden sm:flex">
-            {isLoggedIn ? (
+            {isLoggedIn && user ? (
               <div className="flex items-center gap-2">
-                {/* Mostrar nombre del usuario si está disponible */}
-                {user && (
-                  <span className="text-sm text-gray-600">
-                    Hola, {user.nombre}
-                    {isAdmin() && (
-                      <Badge color="warning" size="sm" className="ml-1">
-                        Admin
-                      </Badge>
-                    )}
-                  </span>
-                )}
+                <span className="text-sm text-gray-600">
+                  Hola, {user.nombre}
+                  {isAdmin() && (
+                    <Badge color="warning" size="sm" className="ml-1">
+                      Admin
+                    </Badge>
+                  )}
+                </span>
                 <Button
                   color="danger"
                   size="sm"
@@ -372,6 +441,8 @@ function AppWrapper() {
             path="/auth"
             element={<AuthPage onLoginSuccess={handleLoginSuccess} />}
           />
+          <Route path="/Gracias" element={<Gracias />} />
+
         </Routes>
       </main>
 
@@ -381,6 +452,7 @@ function AppWrapper() {
         items={cartItems}
         removeItem={removeFromCart}
         updateQuantity={updateQuantity}
+        currentUser={user} 
       />
 
       <Footer />

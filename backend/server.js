@@ -2,11 +2,25 @@ const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
 require('dotenv').config();
+//payu
+const payuRoutes = require('./routes/payu');
 
 const app = express();
-app.use(cors());
+
+// Middlewares
+app.use(cors({
+  origin: 'http://localhost:5173', // o el dominio de tu frontend
+  credentials: true
+}));
 app.use(express.json());
+
+app.use(express.urlencoded({ extended: true }));
 app.use('/images', express.static(__dirname + '/public/images'));
+
+
+
+//payu
+app.use('/api/payu', payuRoutes);
 
 
 
@@ -19,6 +33,7 @@ const db = mysql.createConnection({
   port: process.env.DB_PORT
 });
 
+
 db.connect(err => {
   if (err) {
     console.error('❌ Error de conexión:', err);
@@ -26,6 +41,9 @@ db.connect(err => {
   }
   console.log('✅ Conectado a MySQL');
 });
+
+
+
 
 // Apis de desarrollo
 

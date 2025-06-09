@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import Swal from 'sweetalert2';
 import axios from "axios";
 
 type Usuario = {
@@ -58,6 +59,7 @@ const CrudDashboard = () => {
   // Estados para formulario de productos
   const [showProductoForm, setShowProductoForm] = useState(false);
   const [editProductoId, setEditProductoId] = useState<number | null>(null);
+  const [imagenArchivo, setImagenArchivo] = useState(null);
   const [productoForm, setProductoForm] = useState({
     nombre: "",
     descripcion: "",
@@ -211,6 +213,9 @@ const CrudDashboard = () => {
     setEditProductoId(null);
     setShowProductoForm(true);
   };
+  const handleImagenChange = (file) => {
+  setImagenArchivo(file);
+};
 
   const handleEditarProductoClick = (id_producto: number) => {
     setEditProductoId(id_producto);
@@ -218,53 +223,86 @@ const CrudDashboard = () => {
   };
 
   const handleEliminarProductoClick = async (id_producto: number) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar este producto?")) return;
+  const result = await Swal.fire({
+    title: '¿Estás seguro?',
+    text: 'Esta acción eliminará el producto permanentemente.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Sí, eliminar',
+    cancelButtonText: 'Cancelar',
+  });
+
+  if (result.isConfirmed) {
     try {
       await axios.delete(`/api/productos/${id_producto}`);
+      await Swal.fire('¡Eliminado!', 'El producto ha sido eliminado con éxito.', 'success');
       fetchAllData();
     } catch (error) {
       console.error("Error al eliminar producto", error);
+      Swal.fire('Error', 'Hubo un problema al eliminar el producto.', 'error');
     }
-  };
+  }
+};
 
   const handleGuardarProducto = async () => {
-    try {
-      const productoData = {
-        nombre: productoForm.nombre,
-        descripcion: productoForm.descripcion,
-        precio: parseFloat(productoForm.precio),
-        stock: parseInt(productoForm.stock),
-        puntuacion: parseFloat(productoForm.puntuacion),
-        imagen_url: productoForm.imagen_url,
-        id_categoria: parseInt(productoForm.id_categoria),
-        en_oferta: productoForm.en_oferta,
-        descuento: parseFloat(productoForm.descuento)
-      };
+  try {
+    let imagenURL = productoForm.imagen_url;
 
-      if (editProductoId === null) {
-        await axios.post("/api/productos", productoData);
-      } else {
-        await axios.put(`/api/productos/${editProductoId}`, productoData);
-      }
-      
-      fetchAllData();
-      setShowProductoForm(false);
-      setEditProductoId(null);
-      setProductoForm({
-        nombre: "",
-        descripcion: "",
-        precio: "",
-        stock: "",
-        puntuacion: "0",
-        imagen_url: "",
-        id_categoria: "",
-        en_oferta: false,
-        descuento: "0"
+    // Subir imagen si se seleccionó una nueva
+    if (imagenArchivo) {
+      const formData = new FormData();
+      formData.append("imagen", imagenArchivo);
+
+      const uploadRes = await axios.post("/api/upload-imagen", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
-    } catch (error) {
-      console.error("Error al guardar el producto", error);
+
+      imagenURL = uploadRes.data.rutaImagen; // e.g., "/images/imagen123.jpg"
     }
-  };
+
+    // Construir el objeto para enviar
+    const productoData = {
+      nombre: productoForm.nombre,
+      descripcion: productoForm.descripcion,
+      precio: parseFloat(productoForm.precio),
+      stock: parseInt(productoForm.stock),
+      puntuacion: parseFloat(productoForm.puntuacion),
+      imagen_url: imagenURL,
+      id_categoria: parseInt(productoForm.id_categoria),
+      en_oferta: productoForm.en_oferta,
+      descuento: parseFloat(productoForm.descuento),
+    };
+
+    if (editProductoId === null) {
+      await axios.post("/api/productos", productoData);
+    } else {
+      await axios.put(`/api/productos/${editProductoId}`, productoData);
+    }
+
+    fetchAllData();
+    setShowProductoForm(false);
+    setEditProductoId(null);
+    setImagenArchivo(null);
+    setProductoForm({
+      nombre: "",
+      descripcion: "",
+      precio: "",
+      stock: "",
+      puntuacion: "0",
+      imagen_url: "",
+      id_categoria: "",
+      en_oferta: false,
+      descuento: "0",
+    });
+  } catch (error) {
+    console.error("Error al guardar el producto", error);
+  }
+};
+
 
   const handleProductoFormChange = (field: string, value: string | boolean) => {
     setProductoForm(prev => ({
@@ -548,7 +586,12 @@ const CrudDashboard = () => {
   const renderProductos = () => (
     <div>
       <div className="mb-4">
-        <Button onClick={handleAgregarProductoClick} variant="default" size="sm" className="flex items-center gap-1">
+        <Button
+          onClick={handleAgregarProductoClick}
+          variant="default"
+          size="sm"
+          className="flex items-center gap-1"
+        >
           <Icon icon="mdi:plus" /> Agregar Producto
         </Button>
       </div>
@@ -558,29 +601,40 @@ const CrudDashboard = () => {
           <h3 className="text-lg font-semibold mb-4">
             {editProductoId ? "Editar Producto" : "Agregar Nuevo Producto"}
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Nombre del Producto</label>
+              <label className="block text-sm font-medium mb-1">
+                Nombre del Producto
+              </label>
               <input
                 type="text"
                 value={productoForm.nombre}
-                onChange={(e) => handleProductoFormChange("nombre", e.target.value)}
+                onChange={(e) =>
+                  handleProductoFormChange("nombre", e.target.value)
+                }
                 placeholder="Nombre del producto"
                 className="border px-3 py-2 rounded w-full"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Categoría</label>
+              <label className="block text-sm font-medium mb-1">
+                Categoría
+              </label>
               <select
                 value={productoForm.id_categoria}
-                onChange={(e) => handleProductoFormChange("id_categoria", e.target.value)}
+                onChange={(e) =>
+                  handleProductoFormChange("id_categoria", e.target.value)
+                }
                 className="border px-3 py-2 rounded w-full"
               >
                 <option value="">Seleccionar categoría</option>
                 {categorias.map((categoria) => (
-                  <option key={categoria.id_categoria} value={categoria.id_categoria}>
+                  <option
+                    key={categoria.id_categoria}
+                    value={categoria.id_categoria}
+                  >
                     {categoria.nombre_categoria}
                   </option>
                 ))}
@@ -588,10 +642,14 @@ const CrudDashboard = () => {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Descripción</label>
+              <label className="block text-sm font-medium mb-1">
+                Descripción
+              </label>
               <textarea
                 value={productoForm.descripcion}
-                onChange={(e) => handleProductoFormChange("descripcion", e.target.value)}
+                onChange={(e) =>
+                  handleProductoFormChange("descripcion", e.target.value)
+                }
                 placeholder="Descripción del producto"
                 className="border px-3 py-2 rounded w-full h-20 resize-none"
               />
@@ -603,7 +661,9 @@ const CrudDashboard = () => {
                 type="number"
                 step="0.01"
                 value={productoForm.precio}
-                onChange={(e) => handleProductoFormChange("precio", e.target.value)}
+                onChange={(e) =>
+                  handleProductoFormChange("precio", e.target.value)
+                }
                 placeholder="0.00"
                 className="border px-3 py-2 rounded w-full"
               />
@@ -614,33 +674,38 @@ const CrudDashboard = () => {
               <input
                 type="number"
                 value={productoForm.stock}
-                onChange={(e) => handleProductoFormChange("stock", e.target.value)}
+                onChange={(e) =>
+                  handleProductoFormChange("stock", e.target.value)
+                }
                 placeholder="0"
                 className="border px-3 py-2 rounded w-full"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Puntuación</label>
+              <label className="block text-sm font-medium mb-1">
+                Puntuación
+              </label>
               <input
                 type="number"
                 step="0.1"
                 min="0"
                 max="5"
                 value={productoForm.puntuacion}
-                onChange={(e) => handleProductoFormChange("puntuacion", e.target.value)}
+                onChange={(e) =>
+                  handleProductoFormChange("puntuacion", e.target.value)
+                }
                 placeholder="0.0"
                 className="border px-3 py-2 rounded w-full"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">URL de Imagen</label>
+              <label className="block text-sm font-medium mb-1">Imagen</label>
               <input
-                type="text"
-                value={productoForm.imagen_url}
-                onChange={(e) => handleProductoFormChange("imagen_url", e.target.value)}
-                placeholder="URL de la imagen"
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImagenChange(e.target.files[0])}
                 className="border px-3 py-2 rounded w-full"
               />
             </div>
@@ -650,7 +715,9 @@ const CrudDashboard = () => {
                 <input
                   type="checkbox"
                   checked={productoForm.en_oferta}
-                  onChange={(e) => handleProductoFormChange("en_oferta", e.target.checked)}
+                  onChange={(e) =>
+                    handleProductoFormChange("en_oferta", e.target.checked)
+                  }
                   className="w-4 h-4"
                 />
                 <span className="text-sm font-medium">En oferta</span>
@@ -665,7 +732,9 @@ const CrudDashboard = () => {
                     min="0"
                     max="100"
                     value={productoForm.descuento}
-                    onChange={(e) => handleProductoFormChange("descuento", e.target.value)}
+                    onChange={(e) =>
+                      handleProductoFormChange("descuento", e.target.value)
+                    }
                     placeholder="0"
                     className="border px-2 py-1 rounded w-20"
                   />
@@ -678,11 +747,11 @@ const CrudDashboard = () => {
             <Button onClick={handleGuardarProducto} variant="default">
               <Icon icon="mdi:content-save" /> Guardar
             </Button>
-            <Button 
-              onClick={() => { 
-                setShowProductoForm(false); 
-                setEditProductoId(null); 
-              }} 
+            <Button
+              onClick={() => {
+                setShowProductoForm(false);
+                setEditProductoId(null);
+              }}
               variant="outline"
             >
               Cancelar
@@ -693,36 +762,55 @@ const CrudDashboard = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {productos.map((producto) => (
-          <Card key={producto.id_producto} className="border border-default-200 p-2 flex flex-col">
+          <Card
+            key={producto.id_producto}
+            className="border border-default-200 p-2 flex flex-col"
+          >
             <div className="relative h-32 bg-white flex items-center justify-center mb-2 overflow-hidden rounded">
               <img
-                src={producto.imagen_url.startsWith("http") ? producto.imagen_url : `http://localhost:3001${producto.imagen_url}`}
+                src={
+                  producto.imagen_url.startsWith("http")
+                    ? producto.imagen_url
+                    : `http://localhost:3001${producto.imagen_url}`
+                }
                 alt={producto.nombre}
                 className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
               />
             </div>
             <div className="flex flex-col flex-grow">
-              <div className="font-semibold text-base line-clamp-2 mb-1">{producto.nombre}</div>
-              <div className="text-xs text-gray-600 line-clamp-3 mb-2">{producto.descripcion}</div>
+              <div className="font-semibold text-base line-clamp-2 mb-1">
+                {producto.nombre}
+              </div>
+              <div className="text-xs text-gray-600 line-clamp-3 mb-2">
+                {producto.descripcion}
+              </div>
               <div className="flex gap-2 items-center mt-auto">
-                <Chip size="sm" color="green">${typeof producto.precio === "number" ? producto.precio.toFixed(2) : producto.precio}</Chip>
-                {producto.en_oferta && <Chip size="sm" color="red">-{producto.descuento}%</Chip>}
+                <Chip size="sm" color="green">
+                  $
+                  {typeof producto.precio === "number"
+                    ? producto.precio.toFixed(2)
+                    : producto.precio}
+                </Chip>
+                {producto.en_oferta && (
+                  <Chip size="sm" color="red">
+                    -{producto.descuento}%
+                  </Chip>
+                )}
               </div>
             </div>
             <CardFooter className="flex gap-2 mt-2 p-0 pt-2">
-              <Button 
-                size="sm" 
-                variant="outline" 
+              <Button
+                size="sm"
+                variant="outline"
                 className="flex-1"
                 onClick={() => handleEditarProductoClick(producto.id_producto)}
               >
                 <Icon icon="mdi:pencil" /> Editar
               </Button>
-              <Button 
-                size="sm" 
-                variant="destructive" 
-                className="flex-1"
-                onClick={() => handleEliminarProductoClick(producto.id_producto)}
+              <Button
+                onClick={() =>  handleEliminarProductoClick (producto.id_producto)}
+                variant="destructive"
+                size="sm"
               >
                 <Icon icon="mdi:delete" /> Eliminar
               </Button>
