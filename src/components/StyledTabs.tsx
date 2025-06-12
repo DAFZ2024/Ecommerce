@@ -9,7 +9,7 @@
     Wallet
   } from 'lucide-react';
 
-  export type TabType = "usuarios" | "categorias" | "productos" | "contactos" | "carritos" | "ordenes" | "pagos";
+  export type TabType ="estadisticas" | "usuarios" | "categorias" | "productos" | "contactos" | "carritos" | "ordenes" | "pagos";
 
   interface StyledTabsProps {
     activeTab: TabType;

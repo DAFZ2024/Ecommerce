@@ -28,3 +28,12 @@
     animation: floatReverse 5s ease-in-out infinite;
   }
 }
+
+.avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e2e8f0;
+  color: #718096;
+  font-weight: bold;
+}

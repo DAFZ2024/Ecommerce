@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { 
   Drawer, 
@@ -18,6 +18,7 @@ import {
 import { Icon } from "@iconify/react";
 import { Product } from "../App";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 export interface CartItem extends Product {
   quantity: number;
@@ -51,6 +52,15 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
   const subtotal = items.reduce((sum, item) => sum + (Number(item.precio) * item.quantity), 0);
   const shipping = items.length > 0 ? 5.99 : 0;
   const total = subtotal + shipping;
+
+  // Handle ESC key to close cart
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) onClose();
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isOpen, onClose]);
 
   const handlePayU = async () => {
     setIsProcessing(true);
@@ -145,154 +155,222 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
     }, 2000);
   };
 
+  // Animation variants
+  const itemVariants = {
+    hidden: { opacity: 0, x: 50 },
+    visible: (i: number) => ({
+      opacity: 1,
+      x: 0,
+      transition: {
+        delay: i * 0.05,
+        duration: 0.3,
+        ease: "easeOut"
+      }
+    }),
+    exit: { opacity: 0, x: -50, transition: { duration: 0.2 } }
+  };
+
   return (
     <>
       <Drawer isOpen={isOpen} onClose={onClose} placement="right">
-        <DrawerContent className="max-w-md">
-          <DrawerHeader className="border-b border-default-200">
+        <DrawerContent className="max-w-md w-full">
+          <DrawerHeader className="border-b border-default-200 bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
             <div className="flex items-center">
-              <Icon icon="lucide:shopping-cart" className="mr-2" />
-              <span>Carrito de Compras ({items.length})</span>
+              <motion.div 
+                animate={{ rotate: items.length > 0 ? [0, 10, -10, 0] : 0 }}
+                transition={{ duration: 0.5, repeat: items.length > 0 ? 1 : 0 }}
+              >
+                <Icon icon="lucide:shopping-cart" className="mr-2 text-xl" />
+              </motion.div>
+              <span className="font-bold">Carrito de Compras ({items.length})</span>
             </div>
             
             {currentUser ? (
-              <div className="text-sm text-default-500 mt-1">
+              <div className="text-sm text-indigo-100 mt-1">
                 <div className="flex items-center gap-2">
-                  <Icon icon="lucide:user" className="text-green-500" />
+                  <Icon icon="lucide:user" className="text-green-300" />
                   <span>Logueado como: {currentUser.nombre || currentUser.email}</span>
                 </div>
-                <div className="text-xs text-default-400 ml-6">
+                <div className="text-xs text-indigo-200 ml-6">
                   ID: {currentUser.id} | {currentUser.email}
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-red-500 mt-1 flex items-center gap-2">
+              <motion.div 
+                className="text-sm text-yellow-300 mt-1 flex items-center gap-2"
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              >
                 <Icon icon="lucide:alert-circle" />
                 <span>Debes iniciar sesión para comprar</span>
-              </div>
+              </motion.div>
             )}
           </DrawerHeader>
           
-          <DrawerBody>
+          <DrawerBody className="bg-gray-50">
             {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full">
-                <Icon
-                  icon="lucide:shopping-cart"
-                  className="text-5xl text-default-300 mb-4"
-                />
-                <p className="text-default-500">Tu carrito está vacío</p>
+              <motion.div 
+                className="flex flex-col items-center justify-center h-full py-8"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Icon
+                    icon="lucide:shopping-cart"
+                    className="text-6xl text-gray-300 mb-4"
+                  />
+                </motion.div>
+                <p className="text-gray-500 text-lg mb-6">Tu carrito está vacío</p>
                 <Button
                   color="primary"
-                  variant="flat"
-                  className="mt-4"
+                  variant="solid"
+                  className="mt-4 shadow-lg"
                   onPress={onClose}
                 >
                   Continuar Comprando
                 </Button>
-              </div>
+              </motion.div>
             ) : (
-              <div className="space-y-4">
-                {items.map((item) => (
-                  <div
-                    key={item.id_producto}
-                    className="flex border-b border-default-200 pb-4"
-                  >
-                    <div className="w-20 h-20 rounded overflow-hidden flex-shrink-0">
-                      <Image
-                        src={`http://localhost:3001${item.imagen_url}`}
-                        alt={item.nombre}
-                        className="w-full h-full object-cover"
-                        removeWrapper
-                      />
-                    </div>
-                    <div className="ml-4 flex-grow">
-                      <h4 className="font-medium">{item.nombre}</h4>
-                      <p className="text-default-500 text-sm">
-                        {item.nombre_categoria}
-                      </p>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="font-semibold">
-                          ${Number(item.precio).toFixed(2)}
-                        </span>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          color="danger"
-                          onPress={() => removeItem(item.id_producto)}
-                        >
-                          <Icon icon="lucide:trash-2" />
-                        </Button>
-                      </div>
-                      <div className="mt-2">
-                        <label className="text-sm mr-2">Cantidad:</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={item.quantity}
-                          onChange={(e) =>
-                            updateQuantity(
-                              item.id_producto,
-                              parseInt(e.target.value, 10)
-                            )
-                          }
-                          className="w-16 border border-gray-300 rounded px-1"
+              <AnimatePresence mode="popLayout">
+                <div className="space-y-4">
+                  {items.map((item, index) => (
+                    <motion.div
+                      key={item.id_producto}
+                      custom={index}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      variants={itemVariants}
+                      layout
+                      className="flex border-b border-default-200 pb-4 bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
+                        <Image
+                          src={`http://localhost:3001${item.imagen_url}`}
+                          alt={item.nombre}
+                          className="w-full h-full object-cover"
+                          removeWrapper
                         />
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      <div className="ml-4 flex-grow">
+                        <h4 className="font-medium text-gray-800">{item.nombre}</h4>
+                        <p className="text-gray-500 text-sm">
+                          {item.nombre_categoria}
+                        </p>
+                        <div className="flex justify-between items-center mt-2">
+                          <span className="font-semibold text-indigo-600">
+                            ${Number(item.precio).toFixed(2)}
+                          </span>
+                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="light"
+                              color="danger"
+                              onPress={() => removeItem(item.id_producto)}
+                              className="hover:bg-red-50"
+                            >
+                              <Icon icon="lucide:trash-2" />
+                            </Button>
+                          </motion.div>
+                        </div>
+                        <div className="mt-2 flex items-center">
+                          <label className="text-sm mr-2 text-gray-600">Cantidad:</label>
+                          <motion.div whileHover={{ scale: 1.05 }} className="relative">
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.quantity}
+                              onChange={(e) =>
+                                updateQuantity(
+                                  item.id_producto,
+                                  parseInt(e.target.value, 10)
+                                )
+                              }
+                              className="w-16 border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-indigo-300 focus:border-indigo-500 transition-all"
+                            />
+                          </motion.div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </AnimatePresence>
             )}
           </DrawerBody>
           
           {items.length > 0 && (
-            <DrawerFooter className="border-t border-default-200">
+            <DrawerFooter className="border-t border-default-200 bg-white">
               <div className="w-full space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-default-500">Subtotal</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span className="text-gray-600">Subtotal</span>
+                    <span className="font-medium">${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-default-500">Envío</span>
-                    <span>${shipping.toFixed(2)}</span>
+                    <span className="text-gray-600">Envío</span>
+                    <span className="font-medium">${shipping.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between font-semibold text-lg">
-                    <span>Total</span>
-                    <span>${total.toFixed(2)}</span>
+                  <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200">
+                    <span className="text-gray-800">Total</span>
+                    <span className="text-indigo-700">${total.toFixed(2)}</span>
                   </div>
                 </div>
                 
                 {currentUser && currentUser.id ? (
-                  <Button
-                    color="primary"
-                    fullWidth
-                    size="lg"
-                    onClick={handlePayU}
-                    isLoading={isProcessing}
-                    endContent={<Icon icon="lucide:credit-card" />}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }} 
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full"
                   >
-                    Proceder al Pago
-                  </Button>
+                    <Button
+                      color="primary"
+                      fullWidth
+                      size="lg"
+                      onClick={handlePayU}
+                      isLoading={isProcessing}
+                      endContent={<Icon icon="lucide:credit-card" />}
+                      className="shadow-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
+                    >
+                      Proceder al Pago
+                    </Button>
+                  </motion.div>
                 ) : (
-                  <Button
-                    color="warning"
-                    fullWidth
-                    size="lg"
-                    onClick={() => {
-                      alert('Debes iniciar sesión para realizar el pago');
-                      onClose();
-                    }}
-                    endContent={<Icon icon="lucide:user" />}
+                  <motion.div 
+                    whileHover={{ scale: 1.02 }} 
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full"
                   >
-                    Iniciar Sesión para Pagar
-                  </Button>
+                    <Button
+                      color="warning"
+                      fullWidth
+                      size="lg"
+                      onClick={() => {
+                        alert('Debes iniciar sesión para realizar el pago');
+                        onClose();
+                      }}
+                      endContent={<Icon icon="lucide:user" />}
+                      className="shadow-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                    >
+                      Iniciar Sesión para Pagar
+                    </Button>
+                  </motion.div>
                 )}
                 
-                <Button variant="flat" fullWidth onPress={onClose}>
-                  Continuar Comprando
-                </Button>
+                <motion.div whileHover={{ scale: 1.02 }} className="w-full">
+                  <Button 
+                    variant="light" 
+                    fullWidth 
+                    onPress={onClose}
+                    className="border border-gray-300 text-gray-700 hover:bg-gray-50"
+                  >
+                    Continuar Comprando
+                  </Button>
+                </motion.div>
               </div>
             </DrawerFooter>
           )}
@@ -301,37 +379,95 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
 
       {/* Modal de estado de pago */}
       <Modal isOpen={isModalOpen} onClose={onModalClose}>
-        <ModalContent>
-          <ModalHeader>
+        <ModalContent className="max-w-md">
+          <ModalHeader className="text-center">
             {paymentStatus === 'success' ? '¡Pago Exitoso!' : 
              paymentStatus === 'error' ? 'Error en el Pago' : 'Procesando Pago'}
           </ModalHeader>
           <ModalBody>
             <div className="flex flex-col items-center justify-center py-4">
-              {paymentStatus === 'success' ? (
-                <Icon icon="lucide:check-circle" className="text-6xl text-green-500 mb-4" />
-              ) : paymentStatus === 'error' ? (
-                <Icon icon="lucide:alert-circle" className="text-6xl text-red-500 mb-4" />
-              ) : (
-                <div className="animate-spin">
-                  <Icon icon="lucide:loader-circle" className="text-6xl text-blue-500 mb-4" />
-                </div>
-              )}
-              <p className="text-center">{paymentMessage}</p>
+              <AnimatePresence mode="wait">
+                {paymentStatus === 'success' ? (
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Icon 
+                        icon="lucide:check-circle" 
+                        className="text-6xl text-green-500" 
+                      />
+                    </div>
+                  </motion.div>
+                ) : paymentStatus === 'error' ? (
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <div className="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Icon 
+                        icon="lucide:alert-circle" 
+                        className="text-6xl text-red-500" 
+                      />
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="mb-4"
+                  >
+                    <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                      <Icon 
+                        icon="lucide:loader-circle" 
+                        className="text-6xl text-blue-500" 
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <motion.p 
+                className="text-center text-lg"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
+                {paymentMessage}
+              </motion.p>
             </div>
           </ModalBody>
-          <ModalFooter>
+          <ModalFooter className="justify-center">
             {paymentStatus === 'success' ? (
-              <Button color="primary" fullWidth onPress={() => {
-                onModalClose();
-                navigate('/gracias');
-              }}>
-                Ver Detalles
-              </Button>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button 
+                  color="primary" 
+                  onPress={() => {
+                    onModalClose();
+                    navigate('/gracias');
+                  }}
+                  className="px-8"
+                >
+                  Ver Detalles
+                </Button>
+              </motion.div>
             ) : paymentStatus === 'error' ? (
-              <Button color="danger" fullWidth onPress={onModalClose}>
-                Entendido
-              </Button>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button 
+                  color="danger" 
+                  onPress={onModalClose}
+                  className="px-8"
+                >
+                  Entendido
+                </Button>
+              </motion.div>
             ) : null}
           </ModalFooter>
         </ModalContent>

@@ -90,5 +90,109 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+//Obtener pago por ID de orden
+router.get('/:id/pago', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    
+    // Ejemplo con MySQL
+    const [results] = await db.query(
+      'SELECT * FROM pagos WHERE id_orden = ?', 
+      [orderId]
+    );
+    
+    if (results.length === 0) {
+      return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+    
+    res.json(results[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+
+// Obtener historial de pedidos
+router.get('/historial', async (req, res) => {
+  try {
+    // Obtener ID de usuario (debes implementar autenticación)
+    const userId = 1; // Temporal, cambiar por usuario real
+
+    const [orders] = await db.query(
+      `SELECT 
+        id_orden, 
+        estado, 
+        fecha_creacion, 
+        total,
+        COALESCE(moneda, 'COP') AS moneda
+      FROM ordenes 
+      WHERE id_usuario = ? 
+      ORDER BY fecha_creacion DESC`,
+      [userId]
+    );
+
+    res.json(orders);
+  } catch (error) {
+    console.error('Error en /historial', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+// Agregar este endpoint
+router.get('/:id', async (req, res) => {
+   try {
+    const orderId = req.params.id;
+    console.log(`Solicitando orden ID: ${orderId}`);
+
+    // 1. Obtener información básica de la orden
+    const [order] = await db.query(
+      'SELECT * FROM ordenes WHERE id_orden = ?', 
+      [orderId]
+    );
+    
+    console.log(`Resultado orden:`, order);
+
+    if (!order || order.length === 0) {
+      console.log(`Orden ${orderId} no encontrada`);
+      return res.status(404).json({ error: 'Orden no encontrada' });
+    }
+    
+    // 2. Obtener productos de la orden
+    const [products] = await db.query(
+      `SELECT p.nombre, do.cantidad, do.precio_unitario 
+  FROM detalle_orden do
+  JOIN productos p ON do.id_producto = p.id_producto
+  WHERE do.id_orden = ?`,
+      [orderId]
+    );
+    
+    // 3. Obtener información del usuario
+    const [user] = await db.query(
+      'SELECT nombre, email FROM usuarios WHERE id_usuario = ?',
+      [order[0].id_usuario]
+    );
+    
+    // Construir respuesta
+    const response = {
+      id_orden: order[0].id_orden,
+      total: order[0].total,
+      fecha_creacion: order[0].fecha_creacion,
+      nombre_usuario: user[0]?.nombre || '',
+      email_usuario: user[0]?.email || '',
+      productos: products
+    };
+    
+    res.json(response);
+ } catch (error) {
+    console.error('Error en GET /:id', error);
+    res.status(500).json({ error: 'Error del servidor' });
+  }
+});
+
+
+
 
 module.exports = router;

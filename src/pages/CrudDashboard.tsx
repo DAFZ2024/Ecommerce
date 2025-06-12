@@ -4,7 +4,10 @@ import { Icon } from "@iconify/react";
 import Swal from 'sweetalert2';
 import axios from "axios";
 import { StyledTabs, TabType } from '../components/StyledTabs';
-import { Users, Grid3X3, Box, Mail, ShoppingBag, Receipt, Wallet } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
+import { Users, Grid3X3, Box, Mail, ShoppingBag, Receipt, Wallet, TrendingUp, TrendingDown, DollarSign, Package, ShoppingCart, Star} from "lucide-react";
+import { motion,  AnimatePresence } from "framer-motion";
+
 
 type Usuario = {
   id_usuario: number;
@@ -80,10 +83,18 @@ type OrdenDetalle = {
 type Pago = {
   id_pago: number;
   id_orden: number;
+  id_usuario: number;
   metodo_pago: 'tarjeta';
   numero_tarjeta: string;
   fecha_pago: string;
-  estado: 'completado' | 'fallido';
+  processing_date: string;
+  estado: 'completado' | 'pendiente' | 'cancelado' | 'fallido'| 'error';
+  transaction_id: string;
+  monto: number;
+  moneda: string;
+  firma: string;
+  fecha_actualizacion: string;
+
 };
 
 const tabsConfig: Record<TabType, {
@@ -92,6 +103,7 @@ const tabsConfig: Record<TabType, {
   color: string;
   description: string;
 }> = {
+  estadisticas: { title: "Estadisticas", icon: Wallet, color: "bg-emerald-500", description: "Estadisticas Empresa" },
   usuarios: { title: "Usuarios", icon: Users, color: "bg-blue-500", description: "Gestión de usuarios" },
   categorias: { title: "Categorías", icon: Grid3X3, color: "bg-purple-500", description: "Organizar productos" },
   productos: { title: "Productos", icon: Box, color: "bg-green-500", description: "Inventario y catálogo" },
@@ -121,7 +133,7 @@ const CrudDashboard = () => {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [tab, setTab] = useState<TabType>("usuarios");
+  const [tab, setTab] = useState<TabType>("estadisticas");
 
   // Estados para formulario de categorías
   const [showCategoriaForm, setShowCategoriaForm] = useState(false);
@@ -140,6 +152,19 @@ const [busquedaOrdenUsuario, setBusquedaOrdenUsuario] = useState('');
 const [busquedaCarritoUsuario, setBusquedaCarritoUsuario] = useState('');
 const [busquedaPagoUsuario, setBusquedaPagoUsuario] = useState('');
 const [busquedaCorreo, setBusquedaCorreo] = useState('');
+const [estadisticas, setEstadisticas] = useState({
+  ventasPorMes: [],
+  productosMasVendidos: [],
+  ventasPorCategoria: [],
+  resumenGeneral: {
+    totalVentas: 0,
+    totalOrdenes: 0,
+    promedioOrden: 0,
+    clientesActivos: 0,
+    productosEnStock: 0,
+    ordenesDelMes: 0
+  }
+});
 
 
 
@@ -189,6 +214,14 @@ const [busquedaCorreo, setBusquedaCorreo] = useState('');
       setNombreCategoria("");
     }
   }, [editCategoriaId]);
+
+  // Agregar esta línea al useEffect que llama fetchAllData
+useEffect(() => {
+  if (ordenes.length > 0 && productos.length > 0 && categorias.length > 0) {
+    calcularEstadisticas();
+  }
+}, [ordenes, productos, categorias, ordenDetalles]);
+
 
   useEffect(() => {
     if (editProductoId !== null) {
@@ -291,6 +324,167 @@ const fetchAllData = async () => {
     console.error("Error al cargar datos", error);
   }
 };
+
+
+  //funciones para estadisticas 
+
+  // Agregar esta función para calcular estadísticas
+const calcularEstadisticas = () => {
+  // Ventas por mes (últimos 6 meses)
+  const ventasPorMes = [];
+  const meses = [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ];
+  const fechaActual = new Date();
+
+  for (let i = 5; i >= 0; i--) {
+    const fecha = new Date(
+      fechaActual.getFullYear(),
+      fechaActual.getMonth() - i,
+      1
+    );
+    const mesActual = fecha.getMonth();
+    const añoActual = fecha.getFullYear();
+
+    const ventasDelMes = ordenes.filter((orden) => {
+      const fechaOrden = new Date(orden.fecha);
+      return (
+        fechaOrden.getMonth() === mesActual &&
+        fechaOrden.getFullYear() === añoActual &&
+        orden.estado === "pagado"
+      );
+    });
+
+    const totalVentas = ventasDelMes.reduce(
+      (sum, orden) => sum + Number(orden.total),
+      0
+    );
+
+    ventasPorMes.push({
+      mes: meses[mesActual],
+      ventas: totalVentas,
+      ordenes: ventasDelMes.length,
+    });
+  }
+
+  // Productos más vendidos
+  const ventasProductos = {};
+  ordenDetalles.forEach((detalle) => {
+    const orden = ordenes.find(
+      (o) => o.id_orden === detalle.id_orden && o.estado === "pagado"
+    );
+    if (!orden) return;
+
+    const producto = productos.find(
+      (p) => p.id_producto === detalle.id_producto
+    );
+    if (!producto) {
+      console.warn(`Producto con ID ${detalle.id_producto} no encontrado.`);
+      return;
+    }
+
+    const cantidad = Number(detalle.cantidad);
+    const precio = Number(detalle.precio_unitario);
+
+    if (!ventasProductos[detalle.id_producto]) {
+      ventasProductos[detalle.id_producto] = {
+        nombre: producto.nombre,
+        cantidad: 0,
+        ingresos: 0,
+      };
+    }
+
+    ventasProductos[detalle.id_producto].cantidad += cantidad;
+    ventasProductos[detalle.id_producto].ingresos += cantidad * precio;
+  });
+
+  const productosMasVendidos = Object.values(ventasProductos)
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 5);
+
+  // Ventas por categoría
+const ventasPorCategoria = {};
+categorias.forEach(categoria => {
+  ventasPorCategoria[categoria.id_categoria] = {
+    nombre: categoria.nombre_categoria,
+    ventas: 0,
+    cantidad: 0
+  };
+});
+
+ordenDetalles.forEach(detalle => {
+  const orden = ordenes.find(o => o.id_orden === detalle.id_orden && o.estado === 'pagado');
+  if (!orden) return;
+
+  const producto = productos.find(p => p.id_producto === detalle.id_producto);
+  if (!producto || !ventasPorCategoria[producto.id_categoria]) {
+    console.warn(`Error con producto ${detalle.id_producto} o categoría no encontrada.`);
+    return;
+  }
+
+  const cantidad = Number(detalle.cantidad);
+  const precio = Number(detalle.precio_unitario);
+
+  ventasPorCategoria[producto.id_categoria].ventas += cantidad * precio;
+  ventasPorCategoria[producto.id_categoria].cantidad += cantidad;
+});
+
+const ventasCategoria = Object.values(ventasPorCategoria).filter(cat => cat.ventas > 0);
+
+
+  // Resumen general
+  const ordenesPagadas = ordenes.filter((orden) => orden.estado === "pagado");
+  const totalVentas = ordenesPagadas.reduce(
+    (sum, orden) => sum + Number(orden.total),
+    0
+  );
+  const totalOrdenes = ordenesPagadas.length;
+  const promedioOrden = totalOrdenes > 0 ? totalVentas / totalOrdenes : 0;
+  const clientesActivos = new Set(
+    ordenesPagadas.map((orden) => orden.id_usuario)
+  ).size;
+  const productosEnStock = productos.filter(
+    (producto) => producto.stock > 0
+  ).length;
+
+  const inicioMes = new Date(
+    fechaActual.getFullYear(),
+    fechaActual.getMonth(),
+    1
+  );
+  const ordenesDelMes = ordenes.filter(
+    (orden) => new Date(orden.fecha) >= inicioMes && orden.estado === "pagado"
+  ).length;
+
+  setEstadisticas({
+    ventasPorMes,
+    productosMasVendidos,
+    ventasPorCategoria: ventasCategoria,
+    resumenGeneral: {
+      totalVentas,
+      totalOrdenes,
+      promedioOrden,
+      clientesActivos,
+      productosEnStock,
+      ordenesDelMes,
+    },
+  });
+};
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+
 
   // Funciones para categorías
   const handleAgregarCategoriaClick = () => {
@@ -645,6 +839,281 @@ const pagosFiltrados = pagos.filter((pago) => {
 });
 
 
+
+
+// Función render para estadísticas
+const renderEstadisticas = () => (
+  <div className="p-6 space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <h2 className="text-3xl font-bold mb-6 text-slate-700 flex items-center gap-2">
+        📊 Estadísticas de Rendimiento
+      </h2>
+
+      {/* Tarjetas de resumen */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm">Total Ventas</p>
+              <p className="text-2xl font-bold">
+                {estadisticas.resumenGeneral.totalVentas.toLocaleString(
+                  "es-CO",
+                  {
+                    style: "currency",
+                    currency: "COP",
+                    minimumFractionDigits: 0,
+                  }
+                )}
+              </p>
+            </div>
+            <DollarSign className="text-green-200" size={32} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm">Total Órdenes</p>
+              <p className="text-2xl font-bold">
+                {estadisticas.resumenGeneral.totalOrdenes}
+              </p>
+            </div>
+            <ShoppingCart className="text-blue-200" size={32} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm">Promedio Orden</p>
+              <p className="text-2xl font-bold">
+                ${estadisticas.resumenGeneral.promedioOrden.toFixed(0)}
+              </p>
+            </div>
+            <TrendingUp className="text-purple-200" size={32} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="bg-gradient-to-r from-orange-500 to-orange-600 p-4 rounded-xl text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-100 text-sm">Clientes Activos</p>
+              <p className="text-2xl font-bold">
+                {estadisticas.resumenGeneral.clientesActivos}
+              </p>
+            </div>
+            <Users className="text-orange-200" size={32} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="bg-gradient-to-r from-teal-500 to-teal-600 p-4 rounded-xl text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-teal-100 text-sm">Productos en Stock</p>
+              <p className="text-2xl font-bold">
+                {estadisticas.resumenGeneral.productosEnStock}
+              </p>
+            </div>
+            <Package className="text-teal-200" size={32} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="bg-gradient-to-r from-pink-500 to-pink-600 p-4 rounded-xl text-white shadow-lg"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-pink-100 text-sm">Órdenes del Mes</p>
+              <p className="text-2xl font-bold">
+                {estadisticas.resumenGeneral.ordenesDelMes}
+              </p>
+            </div>
+            <TrendingUp className="text-pink-200" size={32} />
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Ventas por mes */}
+        <Card className="p-6 bg-white shadow-lg rounded-xl">
+          <h3 className="text-xl font-semibold mb-4 text-slate-700 flex items-center gap-2">
+            📈 Ventas por Mes
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={estadisticas.ventasPorMes}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="mes" />
+              <YAxis />
+              <Tooltip
+                formatter={(value) => [`$${value.toLocaleString()}`, "Ventas"]}
+              />
+              <Bar dataKey="ventas" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Productos más vendidos */}
+        <Card className="p-6 bg-white shadow-lg rounded-xl">
+          <h3 className="text-xl font-semibold mb-4 text-slate-700 flex items-center gap-2">
+            🏆 Productos Más Vendidos
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart
+              data={estadisticas.productosMasVendidos}
+              layout="horizontal"
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis dataKey="nombre" type="category" width={100} />
+              <Tooltip formatter={(value) => [value, "Cantidad vendida"]} />
+              <Bar dataKey="cantidad" fill="#10B981" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Ventas por categoría (Pie Chart) */}
+        <Card className="p-6 bg-white shadow-lg rounded-xl">
+          <h3 className="text-xl font-semibold mb-4 text-slate-700 flex items-center gap-2">
+            🎯 Ventas por Categoría
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={estadisticas.ventasPorCategoria}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ nombre, percent }) =>
+                  `${nombre} ${(percent * 100).toFixed(0)}%`
+                }
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="ventas"
+              >
+                {estadisticas.ventasPorCategoria.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={COLORS[index % COLORS.length]}
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value) => [`$${value.toLocaleString()}`, "Ventas"]}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Tendencia de órdenes */}
+        <Card className="p-6 bg-white shadow-lg rounded-xl">
+          <h3 className="text-xl font-semibold mb-4 text-slate-700 flex items-center gap-2">
+            📊 Tendencia de Órdenes
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={estadisticas.ventasPorMes}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="mes" />
+              <YAxis />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="ordenes"
+                stroke="#8B5CF6"
+                strokeWidth={3}
+                dot={{ fill: "#8B5CF6", strokeWidth: 2, r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      {/* Tabla de productos top */}
+      <Card className="p-6 bg-white shadow-lg rounded-xl">
+        <h3 className="text-xl font-semibold mb-4 text-slate-700 flex items-center gap-2">
+          💰 Top Productos por Ingresos
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-200">
+                <th className="text-left py-3 px-2 font-semibold text-slate-600">
+                  Producto
+                </th>
+                <th className="text-left py-3 px-2 font-semibold text-slate-600">
+                  Cantidad Vendida
+                </th>
+                <th className="text-left py-3 px-2 font-semibold text-slate-600">
+                  Ingresos
+                </th>
+                <th className="text-left py-3 px-2 font-semibold text-slate-600">
+                  Estado
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {estadisticas.productosMasVendidos.map((producto, index) => (
+                <motion.tr
+                  key={index}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="border-b border-slate-100 hover:bg-slate-50"
+                >
+                  <td className="py-3 px-2 font-medium text-slate-700">
+                    {producto.nombre}
+                  </td>
+                  <td className="py-3 px-2 text-slate-600">
+                    {producto.cantidad} unidades
+                  </td>
+                  <td className="py-3 px-2 text-green-600 font-semibold">
+                    ${producto.ingresos.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-2">
+                    <Chip
+                      size="sm"
+                      color={index < 3 ? "success" : "primary"}
+                      variant="flat"
+                    >
+                      {index < 3 ? "Top Seller" : "Popular"}
+                    </Chip>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </motion.div>
+  </div>
+);
+
+
+
+
+
+
+
 // reder resto de tablas
 
 
@@ -923,6 +1392,7 @@ const renderOrdenes = () => (
   </div>
 );
 
+
 // Render para pagos
 const renderPagos = () => (
   <div className="p-6">
@@ -930,15 +1400,14 @@ const renderPagos = () => (
       💳 Registros de Pagos
     </h2>
     <div className="mb-4">
-  <input
-    type="text"
-    placeholder="Buscar por nombre del usuario..."
-    value={busquedaPagoUsuario}
-    onChange={(e) => setBusquedaPagoUsuario(e.target.value)}
-    className="border border-slate-300 px-3 py-2 rounded w-full md:w-1/2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-  />
-</div>
-
+      <input
+        type="text"
+        placeholder="Buscar por nombre del usuario..."
+        value={busquedaPagoUsuario}
+        onChange={(e) => setBusquedaPagoUsuario(e.target.value)}
+        className="border border-slate-300 px-3 py-2 rounded w-full md:w-1/2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+      />
+    </div>
 
     <div className="space-y-6">
       {pagosFiltrados.map((pago) => {
@@ -952,10 +1421,13 @@ const renderPagos = () => (
                 <div className="flex-1 space-y-2">
                   <div className="text-lg font-semibold text-slate-800">Pago #{pago.id_pago}</div>
                   <div className="text-sm text-slate-600">
-                    Orden #{pago.id_orden} - {usuario?.nombre_completo || 'Usuario desconocido'}
+                    Orden #{pago.id_orden} - Usuario #{pago.id_usuario} - {usuario?.nombre_completo || 'Usuario desconocido'}
                   </div>
                   <div className="text-sm text-slate-600">
                     Fecha: {new Date(pago.fecha_pago).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    Fecha Actualización: {new Date(pago.fecha_actualizacion).toLocaleString()}
                   </div>
                   <div className="flex flex-wrap gap-6 text-slate-700 text-sm">
                     <div>
@@ -968,9 +1440,33 @@ const renderPagos = () => (
                     </div>
                     <div>
                       <span className="font-medium">Estado: </span>
-                      <span className={pago.estado === 'completado' ? 'text-green-600' : 'text-red-600'}>
-                        {pago.estado === 'completado' ? 'Completado' : 'Fallido'}
+                      <span className={
+                        pago.estado === 'completado' ? 'text-green-600' : 
+                        pago.estado === 'pendiente' ? 'text-yellow-600' :
+                        pago.estado === 'cancelado' ? 'text-orange-600' :
+                        'text-red-600'
+                      }>
+                        {pago.estado === 'completado' ? 'Completado' : 
+                         pago.estado === 'pendiente' ? 'Pendiente' :
+                         pago.estado === 'cancelado' ? 'Cancelado' :
+                         pago.estado === 'fallido' ? 'Fallido' : 'Error'}
                       </span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Monto: </span>
+                      <span>{pago.monto} {pago.moneda}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">ID Transacción: </span>
+                      <span className="font-mono">{pago.transaction_id}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Fecha Procesamiento: </span>
+                      <span>{new Date(pago.processing_date).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Firma: </span>
+                      <span className="font-mono truncate max-w-xs inline-block">{pago.firma}</span>
                     </div>
                   </div>
                 </div>
@@ -1000,114 +1496,87 @@ const renderPagos = () => (
 
 
 
-  const renderUsuarios = () => (
-  <div className="p-6">
-    <div className="mb-4">
-  <input
-    type="text"
-    placeholder="Buscar por nombre o correo..."
-    value={busquedaUsuario}
-    onChange={(e) => setBusquedaUsuario(e.target.value)}
-    className="border border-slate-300 px-3 py-2 rounded w-full md:w-1/2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-  />
-</div>
+const renderUsuarios = () => (
+  <div className="p-6 animate-fade-in space-y-10">
+    {/* Buscador */}
+    <div className="flex justify-between items-center flex-wrap gap-4">
+      <div className="relative w-full max-w-md">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o correo..."
+          value={busquedaUsuario}
+          onChange={(e) => setBusquedaUsuario(e.target.value)}
+          className="w-full px-5 py-3 pr-12 rounded-xl border border-slate-300 bg-white/70 backdrop-blur-md shadow-inner focus:ring-2 focus:ring-indigo-300 focus:outline-none transition-all duration-300"
+        />
+        <span className="absolute right-3 top-3 text-slate-400">
+          <Icon icon="mdi:magnify" className="w-6 h-6" />
+        </span>
+      </div>
 
-    <div className="mb-6">
       <Button
         onClick={handleAgregarUsuarioClick}
-        variant="default"
-        size="sm"
-        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded shadow-sm transition"
+        className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold px-5 py-3 rounded-xl shadow-md hover:shadow-xl transition-all"
       >
-        <Icon icon="mdi:plus" />
+        <Icon icon="mdi:plus" className="w-5 h-5 mr-2" />
         Agregar Usuario
       </Button>
     </div>
 
+    {/* Formulario */}
     {showUsuarioForm && (
-      <div className="mb-8 p-6 border border-slate-300 rounded-2xl bg-slate-50 shadow-sm">
-        <h3 className="text-2xl font-semibold mb-6 text-slate-800">
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="bg-white/60 backdrop-blur-md border border-slate-200 rounded-2xl shadow-xl p-8"
+      >
+        <h3 className="text-2xl font-bold mb-6 text-indigo-800 flex items-center gap-2">
+          <Icon icon={editUsuarioId ? "mdi:pencil" : "mdi:account-plus"} className="text-indigo-600" />
           {editUsuarioId ? "Editar Usuario" : "Agregar Nuevo Usuario"}
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">Nombre Completo</label>
-            <input
-              type="text"
-              value={usuarioForm.nombre_completo}
-              onChange={(e) => handleUsuarioFormChange("nombre_completo", e.target.value)}
-              placeholder="Nombre completo"
-              className="border border-slate-300 px-3 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">Correo Electrónico</label>
-            <input
-              type="email"
-              value={usuarioForm.correo}
-              onChange={(e) => handleUsuarioFormChange("correo", e.target.value)}
-              placeholder="correo@ejemplo.com"
-              className="border border-slate-300 px-3 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            />
-          </div>
-
-          {editUsuarioId === null && (
-            <div>
-              <label className="block text-sm font-medium mb-1 text-slate-700">Contraseña</label>
+          {/* Campos del formulario */}
+          {[
+            ["Nombre Completo", "nombre_completo", "text"],
+            ["Correo Electrónico", "correo", "email"],
+            ...(editUsuarioId === null ? [["Contraseña", "contrasena", "password"]] : []),
+            ["Teléfono", "telefono", "tel"],
+            ["Dirección", "direccion", "text"],
+          ].map(([label, key, type]) => (
+            <div className="space-y-1" key={key}>
+              <label className="text-sm font-medium text-slate-700">{label}</label>
               <input
-                type="password"
-                value={usuarioForm.contrasena}
-                onChange={(e) => handleUsuarioFormChange("contrasena", e.target.value)}
-                placeholder="Contraseña"
-                className="border border-slate-300 px-3 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                type={type}
+                value={usuarioForm[key]}
+                onChange={(e) => handleUsuarioFormChange(key, e.target.value)}
+                placeholder={label}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/70 backdrop-blur-md focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition"
               />
             </div>
-          )}
+          ))}
 
-          <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">Rol</label>
+          {/* Rol */}
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Rol</label>
             <select
               value={usuarioForm.rol}
               onChange={(e) => handleUsuarioFormChange("rol", e.target.value)}
-              className="border border-slate-300 px-3 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/70 backdrop-blur-md focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition"
             >
               <option value="cliente">Cliente</option>
               <option value="admin">Administrador</option>
             </select>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">Teléfono</label>
-            <input
-              type="tel"
-              value={usuarioForm.telefono}
-              onChange={(e) => handleUsuarioFormChange("telefono", e.target.value)}
-              placeholder="Teléfono"
-              className="border border-slate-300 px-3 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1 text-slate-700">Dirección</label>
-            <input
-              type="text"
-              value={usuarioForm.direccion}
-              onChange={(e) => handleUsuarioFormChange("direccion", e.target.value)}
-              placeholder="Dirección"
-              className="border border-slate-300 px-3 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            />
-          </div>
         </div>
 
-        <div className="flex gap-4 mt-6">
+        {/* Botones */}
+        <div className="flex gap-4 mt-8">
           <Button
             onClick={handleGuardarUsuario}
-            variant="default"
-            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-5 py-2 rounded shadow"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all"
           >
-            <Icon icon="mdi:content-save" />
+            <Icon icon="mdi:content-save" className="w-5 h-5 mr-2" />
             Guardar
           </Button>
           <Button
@@ -1115,306 +1584,363 @@ const renderPagos = () => (
               setShowUsuarioForm(false);
               setEditUsuarioId(null);
             }}
-            variant="outline"
-            className="px-5 py-2 rounded border border-slate-400 text-slate-700 hover:bg-slate-100"
+            className="border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-6 py-2.5 rounded-xl transition-all"
           >
             Cancelar
           </Button>
         </div>
-      </div>
+      </motion.div>
     )}
 
-    <div className="space-y-6">
+    {/* Lista de Usuarios */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {usuariosFiltrados.map((usuario) => (
-        <Card
+        <motion.div
           key={usuario.id_usuario}
-          className="border border-slate-300 bg-white rounded-xl shadow-sm hover:shadow-md transition"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.3 }}
+          whileHover={{ scale: 1.02 }}
+          className="bg-white/60 backdrop-blur-md border border-slate-200 rounded-2xl p-6 shadow-lg transition-transform"
         >
-          <CardBody className="p-5">
-            <div className="flex justify-between items-start gap-4">
-              <div className="flex-1">
-                <div className="font-bold text-xl text-slate-900">{usuario.nombre_completo}</div>
-                <div className="text-slate-600 mb-2">{usuario.correo}</div>
-                <div className="flex gap-2 items-center mb-3">
-                  <Chip
-                    size="sm"
-                    color={usuario.rol === "admin" ? "danger" : "primary"}
-                    variant="flat"
-                  >
-                    {usuario.rol === "admin" ? "Administrador" : "Cliente"}
-                  </Chip>
-                </div>
-                <div className="text-sm text-slate-600 space-y-1">
-                  <div>📱 {usuario.telefono}</div>
-                  <div>📍 {usuario.direccion}</div>
-                </div>
-              </div>
+          <div className="flex items-start gap-4">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${usuario.rol === "admin" ? "bg-red-100 text-red-600" : "bg-blue-100 text-blue-600"}`}>
+              <Icon icon="mdi:account" className="w-6 h-6" />
             </div>
-          </CardBody>
-          <CardFooter className="flex gap-3 p-4">
+            <div>
+              <h3 className="font-bold text-lg text-slate-800">{usuario.nombre_completo}</h3>
+              <p className="text-slate-600 text-sm">{usuario.correo}</p>
+              <span className={`mt-1 inline-block px-3 py-1 rounded-full text-xs font-semibold ${usuario.rol === "admin" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
+                {usuario.rol === "admin" ? "Administrador" : "Cliente"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2 text-sm text-slate-600">
+            <div className="flex items-center gap-2">
+              <Icon icon="mdi:phone" className="text-slate-400" />
+              <span>{usuario.telefono || "No especificado"}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Icon icon="mdi:map-marker" className="text-slate-400" />
+              <span>{usuario.direccion || "No especificada"}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 flex justify-end gap-3 border-t border-slate-100 pt-4">
             <Button
               variant="outline"
               onClick={() => handleEditarUsuarioClick(usuario.id_usuario)}
-              className="flex items-center gap-1"
+              className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-4 py-2 rounded-lg transition-all"
             >
-              <Icon icon="mdi:pencil" />
+              <Icon icon="mdi:pencil" className="w-4 h-4 mr-1" />
               Editar
             </Button>
             <Button
               variant="destructive"
               onClick={() => handleEliminarUsuarioClick(usuario.id_usuario)}
-              className="flex items-center gap-1"
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all"
             >
-              <Icon icon="mdi:delete" />
+              <Icon icon="mdi:delete" className="w-4 h-4 mr-1" />
               Eliminar
             </Button>
-          </CardFooter>
-        </Card>
+          </div>
+        </motion.div>
       ))}
     </div>
+
+    {/* Animación global */}
+    <style jsx global>{`
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      .animate-fade-in {
+        animation: fadeIn 0.5s ease-out;
+      }
+    `}</style>
   </div>
 );
 
+
   const renderCategorias = () => (
-  <div className="p-6">
-    <div className="mb-6">
+  <div className="p-6 max-w-7xl mx-auto">
+    <div className="mb-8 flex justify-between items-center">
+      <h2 className="text-2xl font-bold text-slate-800">Gestión de Categorías</h2>
       <Button
         onClick={handleAgregarCategoriaClick}
         variant="default"
         size="sm"
-        className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold px-4 py-2 rounded shadow-sm transition"
+        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-medium px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
       >
-        <Icon icon="mdi:plus" />
+        <Icon icon="mdi:plus" className="text-lg" />
         Agregar Categoría
       </Button>
     </div>
 
-    {showCategoriaForm && (
-      <div className="mb-8 max-w-md">
-        <input
-          type="text"
-          value={nombreCategoria}
-          onChange={(e) => setNombreCategoria(e.target.value)}
-          placeholder="Nombre de la categoría"
-          className="border border-slate-300 px-4 py-2 rounded w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-400"
-        />
-        <div className="flex gap-4 mt-4">
-          <Button
-            onClick={handleGuardarCategoria}
-            variant="default"
-            className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white px-5 py-2 rounded shadow"
-          >
-            <Icon icon="mdi:content-save" />
-            Guardar
-          </Button>
-          <Button
-            onClick={() => {
-              setShowCategoriaForm(false);
-              setEditCategoriaId(null);
-            }}
-            variant="outline"
-            className="px-5 py-2 rounded border border-slate-400 text-slate-700 hover:bg-slate-100"
-          >
-            Cancelar
-          </Button>
-        </div>
-      </div>
-    )}
-
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-  {categorias.map((categoria) => {
-    const iconData = categoriaIcons.find((c) => c.id_categoria === categoria.id_categoria);
-    return (
-      <Card
-        key={categoria.id_categoria}
-        isPressable
-        className="flex flex-col items-center p-5 cursor-pointer border border-slate-300 rounded-xl bg-white hover:shadow-lg transition-shadow duration-300"
-      >
-        {iconData ? (
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center ${iconData.bgColor} mb-4`}>
-            <Icon icon={iconData.icon} className={`text-2xl ${iconData.color}`} />
+    <AnimatePresence>
+      {showCategoriaForm && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ type: "spring", damping: 25 }}
+          className="mb-8 max-w-md bg-white p-6 rounded-xl shadow-lg border border-slate-100"
+        >
+          <h3 className="text-lg font-semibold text-slate-800 mb-4">
+            {editCategoriaId ? "Editar Categoría" : "Nueva Categoría"}
+          </h3>
+          <input
+            type="text"
+            value={nombreCategoria}
+            onChange={(e) => setNombreCategoria(e.target.value)}
+            placeholder="Nombre de la categoría"
+            className="border border-slate-200 px-4 py-2.5 rounded-lg w-full text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm"
+          />
+          <div className="flex gap-3 mt-6 justify-end">
+            <Button
+              onClick={() => {
+                setShowCategoriaForm(false);
+                setEditCategoriaId(null);
+              }}
+              variant="outline"
+              className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleGuardarCategoria}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow hover:shadow-md transition-all"
+            >
+              <Icon icon="mdi:content-save" className="text-lg" />
+              Guardar
+            </Button>
           </div>
-        ) : (
-          <div className="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 mb-4 text-xl font-bold">
-            ?
-          </div>
-        )}
-        <div className="text-center text-base font-semibold truncate mb-4 text-slate-900">
-          {categoria.nombre_categoria}
-        </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
 
-        <div className="flex gap-2">
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => handleEditarCategoriaClick(categoria.id_categoria)}
-            className="w-9 h-9 p-2 flex items-center justify-center"
-          >
-            <Icon icon="mdi:pencil" className="text-lg" />
-          </Button>
-          <Button
-            size="icon"
-            variant="destructive"
-            onClick={() => handleEliminarCategoriaClick(categoria.id_categoria)}
-            className="w-9 h-9 p-2 flex items-center justify-center"
-          >
-            <Icon icon="mdi:delete" className="text-lg" />
-          </Button>
-        </div>
-      </Card>
-    );
-  })}
-</div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+      <AnimatePresence>
+        {categorias.map((categoria) => {
+          const iconData = categoriaIcons.find((c) => c.id_categoria === categoria.id_categoria);
 
+          return (
+            <motion.div
+              key={categoria.id_categoria}
+              layout
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, type: "spring" }}
+              whileHover={{ y: -5 }}
+            >
+              <Card className="flex flex-col items-center p-6 cursor-default border border-slate-100 rounded-xl bg-white hover:shadow-lg transition-all duration-300 group">
+                {iconData ? (
+                  <div
+                    className={`w-16 h-16 rounded-2xl flex items-center justify-center ${iconData.bgColor} mb-5 shadow-inner group-hover:shadow-md transition`}
+                  >
+                    <Icon 
+                      icon={iconData.icon} 
+                      className={`text-3xl ${iconData.color} transition-transform group-hover:scale-110`} 
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-5 text-2xl font-bold group-hover:bg-slate-200 transition">
+                    ?
+                  </div>
+                )}
+
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-1 line-clamp-2">
+                    {categoria.nombre_categoria}
+                  </h3>
+                  <span className="text-xs text-slate-500">ID: {categoria.id_categoria}</span>
+                </div>
+
+                <div className="flex gap-2 mt-5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => handleEditarCategoriaClick(categoria.id_categoria)}
+                    className="w-10 h-10 p-2 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all rounded-xl"
+                    title="Editar categoría"
+                  >
+                    <Icon icon="mdi:pencil" className="text-lg" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => handleEliminarCategoriaClick(categoria.id_categoria)}
+                    className="w-10 h-10 p-2 flex items-center justify-center hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all rounded-xl"
+                    title="Eliminar categoría"
+                  >
+                    <Icon icon="mdi:delete" className="text-lg" />
+                  </Button>
+                </div>
+              </Card>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
   </div>
 );
 
   const renderProductos = () => (
-    <div>
-      <div className="mb-4">
-  <input
-    type="text"
-    placeholder="Buscar por nombre..."
-    value={busqueda}
-    onChange={(e) => setBusqueda(e.target.value)}
-    className="border px-3 py-2 rounded w-full md:w-1/2"
-  />
-</div>
-      <div className="mb-4">
-        <Button
-          onClick={handleAgregarProductoClick}
-          variant="default"
-          size="sm"
-          className="flex items-center gap-1"
-        >
-          <Icon icon="mdi:plus" /> Agregar Producto
-        </Button>
+  <div className="space-y-6">
+    {/* Barra de búsqueda mejorada */}
+    <div className="mb-6 relative max-w-md">
+      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+        <Icon 
+          icon="mdi:magnify" 
+          className="text-gray-400 text-xl" 
+        />
       </div>
+      <input
+        type="text"
+        placeholder="Buscar productos..."
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        className="pl-10 pr-4 py-3 w-full rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 shadow-sm hover:shadow-md"
+      />
+    </div>
 
+    {/* Botón con animación */}
+    <div className="mb-6">
+      <Button
+        onClick={handleAgregarProductoClick}
+        variant="default"
+        size="sm"
+        className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300"
+      >
+        <Icon icon="mdi:plus" className="text-lg" /> 
+        Agregar Producto
+      </Button>
+    </div>
+
+    {/* Formulario con animación de entrada/salida */}
+    <AnimatePresence>
       {showProductoForm && (
-        <div className="mb-6 p-4 border rounded-lg bg-gray-50">
-          <h3 className="text-lg font-semibold mb-4">
-            {editProductoId ? "Editar Producto" : "Agregar Nuevo Producto"}
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.3 }}
+          className="mb-8 p-5 border rounded-2xl bg-white shadow-lg overflow-hidden"
+        >
+          <h3 className="text-xl font-bold mb-5 text-gray-800">
+            {editProductoId ? "✏️ Editar Producto" : "✨ Agregar Nuevo Producto"}
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Nombre del Producto
-              </label>
-              <input
-                type="text"
-                value={productoForm.nombre}
-                onChange={(e) =>
-                  handleProductoFormChange("nombre", e.target.value)
-                }
-                placeholder="Nombre del producto"
-                className="border px-3 py-2 rounded w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Categoría
-              </label>
-              <select
-                value={productoForm.id_categoria}
-                onChange={(e) =>
-                  handleProductoFormChange("id_categoria", e.target.value)
-                }
-                className="border px-3 py-2 rounded w-full"
-              >
-                <option value="">Seleccionar categoría</option>
-                {categorias.map((categoria) => (
-                  <option
-                    key={categoria.id_categoria}
-                    value={categoria.id_categoria}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Campos del formulario */}
+            {[
+              { id: 'nombre', label: 'Nombre del Producto', type: 'text', placeholder: 'Nombre del producto' },
+              { id: 'id_categoria', label: 'Categoría', type: 'select', options: categorias },
+              { id: 'precio', label: 'Precio', type: 'number', placeholder: '0.00' },
+              { id: 'stock', label: 'Stock', type: 'number', placeholder: '0' },
+              { id: 'puntuacion', label: 'Puntuación', type: 'number', placeholder: '0.0' },
+            ].map((field) => (
+              <div key={field.id} className={field.id === 'descripcion' ? 'md:col-span-2' : ''}>
+                <label className="block text-sm font-medium mb-2 text-gray-700">
+                  {field.label}
+                </label>
+                
+                {field.type === 'select' ? (
+                  <select
+                    value={productoForm[field.id]}
+                    onChange={(e) => handleProductoFormChange(field.id, e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   >
-                    {categoria.nombre_categoria}
-                  </option>
-                ))}
-              </select>
-            </div>
+                    <option value="">Seleccionar categoría</option>
+                    {field.options.map((categoria) => (
+                      <option key={categoria.id_categoria} value={categoria.id_categoria}>
+                        {categoria.nombre_categoria}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={field.type}
+                    value={productoForm[field.id]}
+                    onChange={(e) => handleProductoFormChange(field.id, e.target.value)}
+                    placeholder={field.placeholder}
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    min={field.id === 'puntuacion' ? 0 : undefined}
+                    max={field.id === 'puntuacion' ? 5 : undefined}
+                    step={field.id === 'precio' || field.id === 'puntuacion' ? "0.01" : undefined}
+                  />
+                )}
+              </div>
+            ))}
 
+            {/* Descripción */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-2 text-gray-700">
                 Descripción
               </label>
               <textarea
                 value={productoForm.descripcion}
-                onChange={(e) =>
-                  handleProductoFormChange("descripcion", e.target.value)
-                }
+                onChange={(e) => handleProductoFormChange("descripcion", e.target.value)}
                 placeholder="Descripción del producto"
-                className="border px-3 py-2 rounded w-full h-20 resize-none"
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors min-h-[100px]"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Precio</label>
-              <input
-                type="number"
-                step="0.01"
-                value={productoForm.precio}
-                onChange={(e) =>
-                  handleProductoFormChange("precio", e.target.value)
-                }
-                placeholder="0.00"
-                className="border px-3 py-2 rounded w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Stock</label>
-              <input
-                type="number"
-                value={productoForm.stock}
-                onChange={(e) =>
-                  handleProductoFormChange("stock", e.target.value)
-                }
-                placeholder="0"
-                className="border px-3 py-2 rounded w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Puntuación
+            {/* Imagen */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2 text-gray-700">
+                Imagen
               </label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                max="5"
-                value={productoForm.puntuacion}
-                onChange={(e) =>
-                  handleProductoFormChange("puntuacion", e.target.value)
-                }
-                placeholder="0.0"
-                className="border px-3 py-2 rounded w-full"
-              />
+              <div className="flex items-center gap-4">
+                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Icon icon="mdi:cloud-upload" className="text-3xl text-gray-400 mb-2" />
+                    <p className="text-sm text-gray-500">
+                      {productoForm.imagen ? 'Cambiar imagen' : 'Subir imagen'}
+                    </p>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => handleImagenChange(e.target.files[0])}
+                    className="hidden" 
+                  />
+                </label>
+                {productoForm.imagen && (
+                  <div className="relative">
+                    <img 
+                      src={URL.createObjectURL(productoForm.imagen)} 
+                      alt="Preview" 
+                      className="w-24 h-24 object-contain rounded-lg border"
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => handleProductoFormChange("imagen", null)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                    >
+                      <Icon icon="mdi:close" className="text-sm" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Imagen</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImagenChange(e.target.files[0])}
-                className="border px-3 py-2 rounded w-full"
-              />
-            </div>
-
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={productoForm.en_oferta}
-                  onChange={(e) =>
-                    handleProductoFormChange("en_oferta", e.target.checked)
-                  }
-                  className="w-4 h-4"
-                />
+            {/* Oferta */}
+            <div className="flex items-center gap-4 md:col-span-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={productoForm.en_oferta}
+                    onChange={(e) => handleProductoFormChange("en_oferta", e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`w-10 h-5 rounded-full transition-colors ${productoForm.en_oferta ? 'bg-blue-500' : 'bg-gray-300'}`}>
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${productoForm.en_oferta ? 'transform translate-x-5' : ''}`}></div>
+                  </div>
+                </div>
                 <span className="text-sm font-medium">En oferta</span>
               </label>
 
@@ -1427,19 +1953,20 @@ const renderPagos = () => (
                     min="0"
                     max="100"
                     value={productoForm.descuento}
-                    onChange={(e) =>
-                      handleProductoFormChange("descuento", e.target.value)
-                    }
+                    onChange={(e) => handleProductoFormChange("descuento", e.target.value)}
                     placeholder="0"
-                    className="border px-2 py-1 rounded w-20"
+                    className="px-3 py-1.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent w-20 transition-colors"
                   />
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex gap-2 mt-4">
-            <Button onClick={handleGuardarProducto} variant="default">
+          <div className="flex gap-3 mt-6">
+            <Button 
+              onClick={handleGuardarProducto} 
+              className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl shadow hover:shadow-md transition-all flex items-center gap-2"
+            >
               <Icon icon="mdi:content-save" /> Guardar
             </Button>
             <Button
@@ -1447,21 +1974,27 @@ const renderPagos = () => (
                 setShowProductoForm(false);
                 setEditProductoId(null);
               }}
-              variant="outline"
+              className="px-5 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-xl transition-colors"
             >
               Cancelar
             </Button>
           </div>
-        </div>
+        </motion.div>
       )}
+    </AnimatePresence>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {productosFiltrados.map((producto) => (
-          <Card
-            key={producto.id_producto}
-            className="border border-default-200 p-2 flex flex-col"
-          >
-            <div className="relative h-32 bg-white flex items-center justify-center mb-2 overflow-hidden rounded">
+    {/* Grid de productos con animaciones */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      {productosFiltrados.map((producto, index) => (
+        <motion.div
+          key={producto.id_producto}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: index * 0.05 }}
+          className="flex"
+        >
+          <Card className="border border-gray-200 p-3 flex flex-col w-full h-full rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300 group">
+            <div className="relative h-48 bg-gray-50 flex items-center justify-center mb-3 overflow-hidden rounded-xl">
               <img
                 src={
                   producto.imagen_url.startsWith("http")
@@ -1469,52 +2002,104 @@ const renderPagos = () => (
                     : `http://localhost:3001${producto.imagen_url}`
                 }
                 alt={producto.nombre}
-                className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
+                className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-110"
               />
+              <div className="absolute top-3 right-3 flex gap-2">
+                {producto.en_oferta && (
+                  <span className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-lg">
+                    -{producto.descuento}%
+                  </span>
+                )}
+                {/* Indicador de stock */}
+                <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
+                  producto.stock > 10 
+                    ? 'bg-green-500 text-white' 
+                    : producto.stock > 0 
+                    ? 'bg-orange-500 text-white' 
+                    : 'bg-red-500 text-white'
+                }`}>
+                  Stock: {producto.stock}
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col flex-grow">
-              <div className="font-semibold text-base line-clamp-2 mb-1">
+            
+            <div className="flex flex-col flex-grow p-2">
+              <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
                 {producto.nombre}
-              </div>
-              <div className="text-xs text-gray-600 line-clamp-3 mb-2">
+              </h3>
+              <p className="text-gray-600 text-sm mb-4 line-clamp-3 flex-grow">
                 {producto.descripcion}
-              </div>
-              <div className="flex gap-2 items-center mt-auto">
-                <Chip size="sm" color="green">
-                  $
-                  {typeof producto.precio === "number"
-                    ? producto.precio.toFixed(2)
-                      : producto.precio}
-                  </Chip>
+              </p>
+              
+              <div className="flex justify-between items-center mt-auto mb-3">
+                <div className="flex gap-2">
+                  <span className={`text-lg font-bold ${producto.en_oferta ? 'text-red-500' : 'text-green-600'}`}>
+                    ${typeof producto.precio === 'number' ? producto.precio.toFixed(2) : producto.precio}
+                  </span>
                   {producto.en_oferta && (
-                    <Chip size="sm" color="red">
-                      -{producto.descuento}%
-                    </Chip>
+                    <span className="text-gray-400 text-sm line-through">
+                      ${(producto.precio / (1 - producto.descuento / 100)).toFixed(2)}
+                    </span>
                   )}
                 </div>
+                
+                <div className="flex items-center gap-1 text-amber-500">
+                  <Icon icon="mdi:star" />
+                  <span className="font-medium">{producto.puntuacion}</span>
+                </div>
               </div>
-              <CardFooter className="flex gap-2 mt-2 p-0 pt-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => handleEditarProductoClick(producto.id_producto)}
-                >
-                  <Icon icon="mdi:pencil" /> Editar
-                </Button>
-                <Button
-                  onClick={() =>  handleEliminarProductoClick (producto.id_producto)}
-                  variant="destructive"
-                  size="sm"
-                >
-                  <Icon icon="mdi:delete" /> Eliminar
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+
+              {/* Información adicional del stock */}
+              <div className="flex items-center gap-2 mb-3">
+                <Icon 
+                  icon="mdi:package-variant" 
+                  className={`text-sm ${
+                    producto.stock > 10 
+                      ? 'text-green-500' 
+                      : producto.stock > 0 
+                      ? 'text-orange-500' 
+                      : 'text-red-500'
+                  }`} 
+                />
+                <span className={`text-xs font-medium ${
+                  producto.stock > 10 
+                    ? 'text-green-600' 
+                    : producto.stock > 0 
+                    ? 'text-orange-600' 
+                    : 'text-red-600'
+                }`}>
+                  {producto.stock > 10 
+                    ? `${producto.stock} disponibles` 
+                    : producto.stock > 0 
+                    ? `Solo ${producto.stock} disponibles` 
+                    : 'Sin stock'}
+                </span>
+              </div>
+            </div>
+            
+            <CardFooter className="flex gap-3 p-0 pt-3 border-t border-gray-100 mt-auto">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                onClick={() => handleEditarProductoClick(producto.id_producto)}
+              >
+                <Icon icon="mdi:pencil" className="text-blue-600 mr-1" /> Editar
+              </Button>
+              <Button
+                onClick={() => handleEliminarProductoClick(producto.id_producto)}
+                className="bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                size="sm"
+              >
+                <Icon icon="mdi:delete" className="mr-1" /> Eliminar
+              </Button>
+            </CardFooter>
+          </Card>
+        </motion.div>
+      ))}
+    </div>
+  </div>
+);
 
   // Actualizar el JSX final para incluir los nuevos botones de pestañas y renders
 return (
@@ -1547,6 +2132,7 @@ return (
       </div>
 
       <div>
+        {tab === "estadisticas" && renderEstadisticas()}
         {tab === "usuarios" && renderUsuarios()}
         {tab === "categorias" && renderCategorias()}
         {tab === "productos" && renderProductos()}

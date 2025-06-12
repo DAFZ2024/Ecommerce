@@ -27,11 +27,13 @@ import { SpecialOffers } from "./components/special-offers";
 import { Testimonials } from "./components/testimonials";
 import { Footer } from "./components/footer";
 import { ShoppingCart } from "./components/shopping-cart";
-import { Benefits } from "./components/benefits";
 import  ModernElegantCarousel from "./components/Slider";
 import { CallToAction } from "./components/CallToAction";
 import  MapPuntosVenta  from "./components/MapPuntosVenta";
 import CompetitiveAdvantages from './components/CompetitiveAdvantages';
+import OfferModal from "./components/OfferModal";
+import { HistorialPedidos } from './pages/HistorialPedidos';
+import ClientDashboard from './pages/ClientDashboard';
 import { AuthPage } from "./pages/AuthPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ContactPage } from "./pages/ContactPage";
@@ -65,25 +67,19 @@ interface User {
   email: string;
   nombre: string;
   rol: string;
+  avatar_url: string | null;
 }
 
 function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
   return (
     <>
       <Hero />
-      <Benefits />
       <Categories addToCart={addToCart} />
+      <CallToAction />
       <SpecialOffers addToCart={addToCart} />
       <ModernElegantCarousel />
       <FeaturedProducts addToCart={addToCart} />
       <CompetitiveAdvantages/>
-      <CallToAction />
-      <h1 className="text-2xl md:text-3xl font-bold text-center mb-2">
-        Nuestros Puntos de Venta
-      </h1>
-      <p className="text-default-500 text-center mb-8">
-        Encuentra nuestras sucursales cerca de ti
-      </p>
       <MapPuntosVenta />
       <Testimonials />
     </>
@@ -94,13 +90,13 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
 const getUserFromToken = (token: string): User | null => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    console.log('🔍 Payload del token:', payload); // Debug
     
     return {
-      id: payload.userId || payload.id_usuario || payload.id, // Probar múltiples campos
+      id: payload.userId || payload.id_usuario || payload.id,
       email: payload.email || payload.correo,
       nombre: payload.nombre || payload.nombre_completo,
-      rol: payload.rol
+      rol: payload.rol,
+      avatar_url: payload.avatar_url || null // Nuevo campo
     };
   } catch (error) {
     console.error('❌ Error decodificando token:', error);
@@ -145,6 +141,70 @@ function AppWrapper() {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Product[]>([]);
   const [showDropdown, setShowDropdown] = React.useState(false);
+  const [showOfferModal, setShowOfferModal] = React.useState(false);
+  const [bestOfferProduct, setBestOfferProduct] = React.useState<Product | null>(null);
+  const location = useLocation();
+
+   // 3. Función para obtener el producto con mayor oferta
+  const fetchBestOffer = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/api/productos');
+      const products: Product[] = await response.json();
+      
+      // Filtrar productos en oferta y encontrar el de mayor descuento
+      const offersProducts = products.filter(product => product.en_oferta && product.descuento > 0);
+      
+      if (offersProducts.length > 0) {
+        const bestOffer = offersProducts.reduce((max, product) => 
+          product.descuento > max.descuento ? product : max
+        );
+        
+        setBestOfferProduct(bestOffer);
+        
+        // Verificar si ya se mostró el modal hoy
+        const today = new Date().toDateString();
+        const lastShown = localStorage.getItem('offerModalLastShown');
+        
+        if (lastShown !== today) {
+          setShowOfferModal(true);
+          localStorage.setItem('offerModalLastShown', today);
+        }
+      }
+    } catch (error) {
+      console.error('Error al obtener productos en oferta:', error);
+    }
+  };
+
+  // 4. Función para manejar la navegación al producto
+  const handleViewProduct = (productId: number) => {
+    navigate(`/productos/${productId}`);
+  };
+
+  // 5. Función para cerrar el modal
+  const handleCloseOfferModal = () => {
+    setShowOfferModal(false);
+  };
+
+
+  React.useEffect(() => {
+  const currentPath = location.pathname;
+  
+  // Solo mostrar en la página de inicio
+  if (currentPath === '/') {
+    const timer = setTimeout(() => {
+      fetchBestOffer();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }
+}, [location.pathname]);
+
+
+
+
+
+
+
   
   // ✅ Estado mejorado para autenticación
   const [isLoggedIn, setIsLoggedIn] = React.useState(() => {
@@ -291,127 +351,134 @@ function AppWrapper() {
 
   return (
     <>
-      <Navbar maxWidth="xl" className="shadow-sm">
-        <NavbarBrand>
-          <Icon icon="lucide:car" className="text-primary text-2xl" />
-          <p className="font-bold text-inherit ml-2">AutoPartesBogota</p>
-        </NavbarBrand>
-        <NavbarContent className="hidden sm:flex gap-4" justify="center">
-          <NavbarItem>
-            <Link as={RouterLink} to="/">
-              Inicio
-            </Link>
-          </NavbarItem>
-          <NavbarItem>
-            <Link as={RouterLink} to="/productos">
-              Productos
-            </Link>
-          </NavbarItem>
-          <NavbarItem>
-            <Link as={RouterLink} to="/ofertas">
-              Ofertas
-            </Link>
-          </NavbarItem>
-          <NavbarItem>
-            <Link as={RouterLink} to="/contacto">
-              Contacto
-            </Link>
-          </NavbarItem>
-          {/* Solo mostrar Dashboard si el usuario es admin */}
-          {isAdmin() && (
+        <Navbar maxWidth="xl" className="shadow-sm">
+          <NavbarBrand>
+            <Icon icon="lucide:car" className="text-primary text-2xl" />
+            <p className="font-bold text-inherit ml-2">AutoPartesBogota</p>
+          </NavbarBrand>
+          <NavbarContent className="hidden sm:flex gap-4" justify="center">
             <NavbarItem>
-              <Link as={RouterLink} to="/CrudDashboard">
-                Dashboard
+              <Link as={RouterLink} to="/">
+                Inicio
               </Link>
             </NavbarItem>
-          )}
-        </NavbarContent>
-        <NavbarContent justify="end">
-          <NavbarItem className="hidden sm:flex relative">
-            <div className="relative w-full">
-              <Input
-                classNames={{
-                  base: "max-w-full sm:max-w-[15rem] h-10",
-                  mainWrapper: "h-full",
-                  input: "text-small",
-                  inputWrapper:
-                    "h-full font-normal text-default-500 bg-default-100",
-                }}
-                placeholder="Buscar productos..."
-                size="sm"
-                startContent={
-                  <Icon icon="lucide:search" className="text-default-400" />
-                }
-                type="search"
-                value={searchTerm}
-                onChange={handleSearch}
-              />
-              {showDropdown && searchResults.length > 0 && (
-                <div className="absolute z-50 top-full mt-1 w-[25rem] sm:w-[30rem] bg-white shadow-lg rounded-lg max-h-96 overflow-y-auto border border-gray-200">
-                  {searchResults.map((product) => (
-                    <RouterLink
-                      to={`/productos/${product.id_producto}`}
-                      key={product.id_producto}
-                      className="flex items-center gap-3 px-4 py-2 text-sm text-gray-800 hover:bg-gray-100"
-                      onClick={clearSearch}
-                    >
-                      <img
-                        src={`http://localhost:3001${product.imagen_url}`}
-                        alt={product.nombre}
-                        className="w-10 h-10 object-cover rounded"
-                      />
-                      <span>{product.nombre}</span>
-                    </RouterLink>
-                  ))}
-                </div>
-              )}
-            </div>
-          </NavbarItem>
-          <NavbarItem>
-            <Button
-              isIconOnly
-              variant="light"
-              aria-label="Carrito"
-              onPress={handleCartOpen}
-            >
-              <Badge
-                content={cartItems.length}
-                color="primary"
-                shape="circle"
-                size="sm"
-              >
-                <Icon icon="lucide:shopping-cart" className="text-xl" />
-              </Badge>
-            </Button>
-          </NavbarItem>
-          <NavbarItem className="hidden sm:flex">
-            {isLoggedIn && user ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">
-                  Hola, {user.nombre}
-                  {isAdmin() && (
-                    <Badge color="warning" size="sm" className="ml-1">
-                      Admin
-                    </Badge>
-                  )}
-                </span>
-                <Button
-                  color="danger"
-                  size="sm"
-                  onClick={handleLogout}
-                >
-                  Cerrar Sesión
-                </Button>
-              </div>
-            ) : (
-              <Button as={RouterLink} to="/auth" color="primary" variant="flat">
-                <Icon icon="lucide:user" className="text-sm mr-1" />
-                Mi Cuenta
-              </Button>
+            <NavbarItem>
+              <Link as={RouterLink} to="/productos">
+                Productos
+              </Link>
+            </NavbarItem>
+            <NavbarItem>
+              <Link as={RouterLink} to="/ofertas">
+                Ofertas
+              </Link>
+            </NavbarItem>
+            <NavbarItem>
+              <Link as={RouterLink} to="/contacto">
+                Contacto
+              </Link>
+            </NavbarItem>
+            {isLoggedIn && user && user.rol === "cliente" && (
+              <NavbarItem>
+                <Link as={RouterLink} to="/dashboard">
+                  Dashboard
+                </Link>
+              </NavbarItem>
             )}
-          </NavbarItem>
-        </NavbarContent>
-      </Navbar>
+            
+
+            {/* Solo mostrar Dashboard si el usuario es admin */}
+            {isAdmin() && (
+              <NavbarItem>
+                <Link as={RouterLink} to="/CrudDashboard">
+                  Dashboard
+                </Link>
+              </NavbarItem>
+            )}
+
+            
+          </NavbarContent>
+          <NavbarContent justify="end">
+            <NavbarItem className="hidden sm:flex relative">
+              <div className="relative w-full">
+                <Input
+                  classNames={{
+                    base: "max-w-full sm:max-w-[15rem] h-10",
+                    mainWrapper: "h-full",
+                    input: "text-small",
+                    inputWrapper:
+                      "h-full font-normal text-default-500 bg-default-100",
+                  }}
+                  placeholder="Buscar productos..."
+                  size="sm"
+                  startContent={
+                    <Icon icon="lucide:search" className="text-default-400" />
+                  }
+                  type="search"
+                  value={searchTerm}
+                  onChange={handleSearch}
+                />
+                {showDropdown && searchResults.length > 0 && (
+                  <div className="absolute z-50 top-full mt-1 w-[25rem] sm:w-[30rem] bg-white shadow-lg rounded-lg max-h-96 overflow-y-auto border border-gray-200">
+                    {searchResults.map((product) => (
+                      <RouterLink
+                        to={`/productos/${product.id_producto}`}
+                        key={product.id_producto}
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-800 hover:bg-gray-100"
+                        onClick={clearSearch}
+                      >
+                        <img
+                          src={`http://localhost:3001${product.imagen_url}`}
+                          alt={product.nombre}
+                          className="w-10 h-10 object-cover rounded"
+                        />
+                        <span>{product.nombre}</span>
+                      </RouterLink>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </NavbarItem>
+            <NavbarItem>
+              <Button
+                isIconOnly
+                variant="light"
+                aria-label="Carrito"
+                onPress={handleCartOpen}
+              >
+                <Badge
+                  content={cartItems.length}
+                  color="primary"
+                  shape="circle"
+                  size="sm"
+                >
+                  <Icon icon="lucide:shopping-cart" className="text-xl" />
+                </Badge>
+              </Button>
+            </NavbarItem>
+            <NavbarItem className="hidden sm:flex">
+              {isLoggedIn && user ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">
+                    Hola, {user.nombre}
+                    {isAdmin() && (
+                      <Badge color="warning" size="sm" className="ml-1">
+                        Admin
+                      </Badge>
+                    )}
+                  </span>
+                  <Button color="danger" size="sm" onClick={handleLogout}>
+                    Cerrar Sesión
+                  </Button>
+                </div>
+              ) : (
+                <Button as={RouterLink} to="/auth" color="primary" variant="flat">
+                  <Icon icon="lucide:user" className="text-sm mr-1" />
+                  Mi Cuenta
+                </Button>
+              )}
+            </NavbarItem>
+          </NavbarContent>
+        </Navbar>
 
       <main className="flex-grow">
         <Routes>
@@ -429,8 +496,14 @@ function AppWrapper() {
             path="/CrudDashboard"
             element={
               <AdminRoute>
-                <CrudDashboard/>
+                <CrudDashboard />
               </AdminRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              isLoggedIn ? <ClientDashboard /> : <Navigate to="/auth" replace />
             }
           />
           <Route
@@ -446,7 +519,7 @@ function AppWrapper() {
             element={<AuthPage onLoginSuccess={handleLoginSuccess} />}
           />
           <Route path="/Gracias" element={<Gracias />} />
-
+          <Route path="/historial" element={<HistorialPedidos />} />
         </Routes>
       </main>
 
@@ -456,7 +529,15 @@ function AppWrapper() {
         items={cartItems}
         removeItem={removeFromCart}
         updateQuantity={updateQuantity}
-        currentUser={user} 
+        currentUser={user}
+      />
+
+      <OfferModal
+        isOpen={showOfferModal}
+        onClose={handleCloseOfferModal}
+        product={bestOfferProduct}
+        addToCart={addToCart}
+        onViewProduct={handleViewProduct}
       />
 
       <Footer />

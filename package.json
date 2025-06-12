@@ -11,11 +11,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@floating-ui/react": "^0.27.12",
     "@heroui/react": "2.7.9",
     "@iconify/react": "latest",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@react-oauth/google": "^0.12.2",
     "axios": "^1.9.0",
     "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
     "framer-motion": "^11.18.2",
+    "google-auth-library": "^10.0.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.513.0",
@@ -25,6 +31,7 @@
     "react-hot-toast": "^2.5.2",
     "react-leaflet": "^4.2.1",
     "react-router-dom": "^7.6.2",
+    "recharts": "^2.15.3",
     "source-map-js": "^1.2.1",
     "sweetalert2": "^11.22.0"
   },
