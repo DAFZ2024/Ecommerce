@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardBody, CardFooter, Button, Chip, Progress } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { supabase } from "../lib/supabaseClient";
 import { Product } from "../App";
 
 interface OffersPageProps {
@@ -10,23 +11,71 @@ interface OffersPageProps {
 export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
   const [offers, setOffers] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  // Estado local para el stock simulado
+  const [simulatedStock, setSimulatedStock] = useState<{ [id: number]: number }>({});
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/productos/ofertas")
-      .then((res) => res.json())
-      .then((data) => {
-        // Ordenar por descuento de mayor a menor
-        const sortedOffers = data.sort((a: Product, b: Product) => 
-          (b.descuento ?? 0) - (a.descuento ?? 0)
-        );
-        setOffers(sortedOffers);
+    const fetchOffers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('productos')
+          .select(`
+            *,
+            categorias!inner(
+              id_categoria,
+              nombre_categoria
+            )
+          `)
+          .eq('en_oferta', true)
+          .gt('descuento', 0)
+          .order('descuento', { ascending: false });
+
+        if (error) {
+          console.error("Error al cargar ofertas:", error);
+          setLoading(false);
+          return;
+        }
+
+        // Transformar los datos para mantener compatibilidad con la interfaz Product
+        const transformedOffers: Product[] = data.map((item: any) => ({
+          id_producto: item.id_producto,
+          nombre: item.nombre,
+          descripcion: item.descripcion,
+          precio: Number(item.precio),
+          stock: item.stock,
+          puntuacion: Number(item.puntuacion) || 0,
+          imagen_url: item.imagen_url,
+          id_categoria: item.id_categoria,
+          nombre_categoria: item.categorias.nombre_categoria,
+          en_oferta: Boolean(item.en_oferta),
+          descuento: Number(item.descuento) || 0
+        }));
+
+        setOffers(transformedOffers);
+        // Inicializar el stock simulado con el stock real
+        const stockMap: { [id: number]: number } = {};
+        transformedOffers.forEach((item) => {
+          stockMap[item.id_producto] = item.stock;
+        });
+        setSimulatedStock(stockMap);
         setLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Error al cargar ofertas:", err);
         setLoading(false);
-      });
+      }
+    };
+
+    fetchOffers();
   }, []);
+
+  // Función para añadir al carrito y animar el stock
+  const handleAddToCart = (product: Product) => {
+    setSimulatedStock((prev) => ({
+      ...prev,
+      [product.id_producto]: Math.max((prev[product.id_producto] || product.stock) - 1, 0),
+    }));
+    addToCart(product);
+  };
 
   const topOffers = offers.slice(0, 3);
   const regularOffers = offers.slice(3);
@@ -40,7 +89,18 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
         </p>
 
         {loading ? (
-          <p className="text-center">Cargando ofertas...</p>
+          <div className="text-center py-16">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-6"></div>
+            <p className="text-default-500 text-xl">Cargando ofertas especiales...</p>
+          </div>
+        ) : offers.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-32 h-32 bg-default-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Icon icon="lucide:percent" className="text-6xl text-default-400" />
+            </div>
+            <h3 className="text-2xl font-bold text-default-600 mb-4">No hay ofertas disponibles</h3>
+            <p className="text-default-400 text-lg">¡Pero pronto tendremos descuentos increíbles para ti!</p>
+          </div>
         ) : (
           <>
             {/* Mejores 3 ofertas - Destacadas */}
@@ -57,8 +117,8 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
                   {topOffers.map((product, index) => (
                     <FeaturedOfferCard 
                       key={product.id_producto} 
-                      product={product} 
-                      addToCart={addToCart}
+                      product={{ ...product, stock: simulatedStock[product.id_producto] ?? product.stock }}
+                      addToCart={handleAddToCart}
                       rank={index + 1}
                     />
                   ))}
@@ -74,7 +134,11 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {regularOffers.map((product) => (
-                    <OfferCard key={product.id_producto} product={product} addToCart={addToCart} />
+                    <OfferCard 
+                      key={product.id_producto} 
+                      product={{ ...product, stock: simulatedStock[product.id_producto] ?? product.stock }}
+                      addToCart={handleAddToCart}
+                    />
                   ))}
                 </div>
               </div>
@@ -122,7 +186,7 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
       <CardBody className="p-0 overflow-hidden">
         <div className="relative h-52 bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center">
           <img
-            src={`http://localhost:3001${product.imagen_url}`}
+            src={product.imagen_url}
             alt={product.nombre}
             className="max-h-full max-w-full object-contain transition-transform hover:scale-110 duration-300"
           />
@@ -158,10 +222,10 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
             {discountPercentage > 0 && (
               <div className="flex flex-col">
                 <p className="text-gray-500 text-sm line-through">
-                  ${(product.precio / (1 - discountPercentage / 100)).toFixed(2)}
+                  ${(Number(product.precio) / (1 - discountPercentage / 100)).toFixed(2)}
                 </p>
                 <p className="text-green-600 text-xs font-semibold">
-                  Ahorras ${((product.precio / (1 - discountPercentage / 100)) - product.precio).toFixed(2)}
+                  Ahorras ${((Number(product.precio) / (1 - discountPercentage / 100)) - Number(product.precio)).toFixed(2)}
                 </p>
               </div>
             )}
@@ -216,7 +280,7 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
       <CardBody className="p-0 overflow-hidden">
         <div className="relative h-48 bg-white flex items-center justify-center">
           <img
-            src={`http://localhost:3001${product.imagen_url}`}
+            src={product.imagen_url}
             alt={product.nombre}
             className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
           />
@@ -236,7 +300,7 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
             <p className="text-primary font-semibold">${Number(product.precio).toFixed(2)}</p>
             {discountPercentage > 0 && (
               <p className="text-default-400 text-sm line-through">
-                ${(product.precio / (1 - discountPercentage / 100)).toFixed(2)}
+                ${(Number(product.precio) / (1 - discountPercentage / 100)).toFixed(2)}
               </p>
             )}
           </div>

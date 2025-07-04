@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import axios from "axios";
-import { Product } from "../App"; // Importar la interfaz Product
+import { supabase } from "../lib/supabaseClient";
+import { Product } from "../App";
 
 interface CategoriesProps {
-  addToCart: (product: Product) => void; // Agregar prop addToCart
+  addToCart: (product: Product) => void;
 }
 
 const categories = [
@@ -60,7 +60,6 @@ export const Categories: React.FC<CategoriesProps> = ({ addToCart }) => {
 
   const handleCategoryClick = async (categoryId: number) => {
     if (selectedCategoryId === categoryId) {
-      // Si el mismo botón se clickea, ocultamos productos
       setSelectedCategoryId(null);
       setProducts([]);
       return;
@@ -68,9 +67,25 @@ export const Categories: React.FC<CategoriesProps> = ({ addToCart }) => {
     setSelectedCategoryId(categoryId);
     setLoading(true);
     try {
-      // Cambia la URL si es necesario para tu backend
-      const res = await axios.get<Product[]>(`http://localhost:3001/api/productos/categoria/${categoryId}`);
-      setProducts(res.data);
+      const { data, error } = await supabase
+        .from('productos')
+        .select(`*, categorias!inner(id_categoria, nombre_categoria)`)
+        .eq('id_categoria', categoryId);
+      if (error) throw error;
+      const transformed: Product[] = (data || []).map((item: any) => ({
+        id_producto: item.id_producto,
+        nombre: item.nombre,
+        descripcion: item.descripcion,
+        precio: Number(item.precio),
+        stock: item.stock,
+        puntuacion: Number(item.puntuacion) || 0,
+        imagen_url: item.imagen_url,
+        id_categoria: item.id_categoria,
+        nombre_categoria: item.categorias.nombre_categoria,
+        en_oferta: Boolean(item.en_oferta),
+        descuento: Number(item.descuento) || 0
+      }));
+      setProducts(transformed);
     } catch (error) {
       console.error("Error cargando productos por categoría:", error);
       setProducts([]);
@@ -80,10 +95,7 @@ export const Categories: React.FC<CategoriesProps> = ({ addToCart }) => {
 
   const handleAddToCart = (product: Product) => {
     try {
-      console.log("🛒 Agregando producto desde categorías:", product);
       addToCart(product);
-      // Opcional: mostrar una notificación de éxito
-      //alert(`✅ ${product.nombre} agregado al carrito`);
     } catch (error) {
       console.error("❌ Error al agregar producto al carrito:", error);
       alert("Error al agregar el producto al carrito");
@@ -125,7 +137,7 @@ export const Categories: React.FC<CategoriesProps> = ({ addToCart }) => {
                 <CardBody className="p-0 overflow-hidden">
                   <div className="relative h-48 bg-white flex items-center justify-center">
                     <img
-                      src={`http://localhost:3001${product.imagen_url}`}
+                      src={product.imagen_url}
                       alt={product.nombre}
                       className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
                     />

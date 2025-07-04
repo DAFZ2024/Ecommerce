@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardBody, CardFooter, Button, Chip, Spinner } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { supabase } from "../lib/supabaseClient";
 
 export interface Product {
   id_producto: number;
@@ -38,22 +39,6 @@ const categorySlugMap: { [key: string]: string } = {
   'electronica': 'Electronica'                  // ID: 10
 };
 
-// También puedes crear un mapeo inverso para facilitar la navegación
-const categoryNameToSlug: { [key: string]: string } = {
-  'aceites de moto': 'aceites-motos',
-  'Aceites para auto': 'aceites-autos',
-  'Filtros': 'filtros',
-  'Baterias': 'baterias',
-  'Neumaticos': 'neumaticos',
-  'Herramientas': 'herramientas',
-  'Lubricantes': 'lubricantes',
-  'Accesorios': 'accesorios',
-  'Repuestos': 'repuestos',
-  'Electronica': 'electronica'
-};
-
-
-
 export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ addToCart }) => {
   const { categorySlug } = useParams<{ categorySlug: string }>();
   const navigate = useNavigate();
@@ -73,16 +58,17 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
 
       try {
         setLoading(true);
-        // Aquí deberías ajustar el endpoint según tu API
-        // Por ejemplo: /api/productos/categoria/:categoryName
-        const res = await fetch(`http://localhost:3001/api/productos/categoria/${encodeURIComponent(categoryName)}`);
-        
-        if (!res.ok) {
-          throw new Error('Error al cargar productos');
+        // Consulta directa a Supabase filtrando por nombre de categoría
+        const { data, error: supabaseError } = await supabase
+          .from('productos')
+          .select(`id_producto, nombre, descripcion, precio, stock, puntuacion, imagen_url, id_categoria, nombre_categoria, en_oferta, descuento`)
+          .eq('nombre_categoria', categoryName);
+
+        if (supabaseError) {
+          throw supabaseError;
         }
-        
-        const data = await res.json();
-        setProducts(data);
+        setProducts(data || []);
+        setError(null);
       } catch (err) {
         console.error("Error al obtener productos por categoría:", err);
         setError('Error al cargar los productos');
@@ -94,24 +80,13 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
     fetchProductsByCategory();
   }, [categorySlug, categoryName]);
 
-  const getCategorySlug = (categoryName: string): string => {
-  const slug = Object.keys(categorySlugMap).find(
-    key => categorySlugMap[key].toLowerCase() === categoryName.toLowerCase()
-  );
-  return slug || categoryName.toLowerCase().replace(/\s+/g, '-');
-};
-
-  const handleCategoryClick = (categoryName: string) => {
-  const slug = getCategorySlug(categoryName);
-  navigate(`/categoria/${slug}`);
-};
-
-  const handleProductClick = (productId: number) => {
-    navigate(`/producto/${productId}`);
-  };
-
   const calculateOriginalPrice = (precio: number, descuento: number) => {
     return precio / (1 - descuento / 100);
+  };
+
+  // Restaurar función para navegación al detalle de producto
+  const handleProductClick = (productId: number) => {
+    navigate(`/producto/${productId}`);
   };
 
   if (loading) {
@@ -198,7 +173,7 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
               <CardBody className="p-0 overflow-hidden">
                 <div className="relative h-48 bg-white flex items-center justify-center p-4">
                   <img
-                    src={`http://localhost:3001${product.imagen_url}`}
+                    src={product.imagen_url}
                     alt={product.nombre}
                     className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
                   />
@@ -256,8 +231,7 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
                   variant="flat"
                   fullWidth
                   size="sm"
-                  onPress={(e) => {
-                    e.stopPropagation(); // Evita que se active el click del Card
+                  onPress={() => {
                     addToCart(product);
                   }}
                   startContent={<Icon icon="lucide:shopping-cart" className="text-sm" />}

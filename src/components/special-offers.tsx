@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardBody, CardFooter, Button, Chip, Progress } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { supabase } from "../lib/supabaseClient";
 import { Product } from "../App";
 import { Link } from "react-router-dom";
 
@@ -12,16 +13,34 @@ export const SpecialOffers: React.FC<SpecialOffersProps> = ({ addToCart }) => {
   const [offers, setOffers] = useState<Product[]>([]);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/productos/ofertas")
-      .then((res) => res.json())
-      .then((data) => {
-        // Ordenar por descuento de mayor a menor
-        const sortedOffers = data.sort((a: Product, b: Product) => 
-          (b.descuento ?? 0) - (a.descuento ?? 0)
-        );
-        setOffers(sortedOffers);
-      })
-      .catch((err) => console.error("Error cargando ofertas:", err));
+    const fetchOffers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('productos')
+          .select(`*, categorias!inner(id_categoria, nombre_categoria)`)
+          .eq('en_oferta', true)
+          .gt('descuento', 0)
+          .order('descuento', { ascending: false });
+        if (error) throw error;
+        const transformed: Product[] = (data || []).map((item: any) => ({
+          id_producto: item.id_producto,
+          nombre: item.nombre,
+          descripcion: item.descripcion,
+          precio: Number(item.precio),
+          stock: item.stock,
+          puntuacion: Number(item.puntuacion) || 0,
+          imagen_url: item.imagen_url,
+          id_categoria: item.id_categoria,
+          nombre_categoria: item.categorias.nombre_categoria,
+          en_oferta: Boolean(item.en_oferta),
+          descuento: Number(item.descuento) || 0
+        }));
+        setOffers(transformed);
+      } catch (err) {
+        console.error("Error cargando ofertas:", err);
+      }
+    };
+    fetchOffers();
   }, []);
 
   const topOffers = offers.slice(0, 3);
@@ -125,7 +144,7 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
       <CardBody className="p-0 overflow-hidden">
         <div className={`relative h-48 bg-gradient-to-br ${cardGradients[rank as keyof typeof cardGradients]} flex items-center justify-center`}>
           <img
-            src={`http://localhost:3001${product.imagen_url}`}
+            src={product.imagen_url}
             alt={product.nombre}
             className="max-h-full max-w-full object-contain transition-transform hover:scale-110 duration-300"
           />
@@ -161,10 +180,10 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
             {discountPercentage > 0 && (
               <div className="flex flex-col">
                 <p className="text-gray-500 text-xs line-through">
-                  ${(product.precio / (1 - discountPercentage / 100)).toFixed(2)}
+                  ${(Number(product.precio) / (1 - discountPercentage / 100)).toFixed(2)}
                 </p>
                 <p className="text-green-600 text-xs font-semibold">
-                  Ahorras ${((product.precio / (1 - discountPercentage / 100)) - product.precio).toFixed(2)}
+                  Ahorras ${((Number(product.precio) / (1 - discountPercentage / 100)) - Number(product.precio)).toFixed(2)}
                 </p>
               </div>
             )}
@@ -218,7 +237,7 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
       <CardBody className="p-0 overflow-hidden">
         <div className="relative h-48 bg-white flex items-center justify-center">
           <img
-            src={`http://localhost:3001${product.imagen_url}`}
+            src={product.imagen_url}
             alt={product.nombre}
             className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
           />
@@ -240,7 +259,7 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
             <p className="text-primary font-semibold">${Number(product.precio).toFixed(2)}</p>
             {product.descuento > 0 && (
               <p className="text-default-400 text-sm line-through">
-                ${(product.precio / (1 - product.descuento / 100)).toFixed(2)}
+                {(Number(product.precio) / (1 - product.descuento / 100)).toFixed(2)}
               </p>
             )}
           </div>

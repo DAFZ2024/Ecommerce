@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import axios from "axios";
+import { supabase } from "../lib/supabaseClient";
 import { Product } from "../App";
 
 interface FeaturedProductsProps {
@@ -13,13 +13,33 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ addToCart })
   const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
-    axios
-      .get("http://localhost:3001/api/productos/destacados") // ✅ URL corregida
-      .then((res) => {
-        console.log("Productos destacados:", res.data); // ✅ Debug
-        setFeaturedProducts(res.data);
-      })
-      .catch((err) => console.error("Error al cargar productos destacados:", err));
+    const fetchFeatured = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('productos')
+          .select(`*, categorias!inner(id_categoria, nombre_categoria)`)
+          .order('puntuacion', { ascending: false })
+          .limit(12); // Puedes ajustar el límite si quieres mostrar más
+        if (error) throw error;
+        const transformed: Product[] = (data || []).map((item: any) => ({
+          id_producto: item.id_producto,
+          nombre: item.nombre,
+          descripcion: item.descripcion,
+          precio: Number(item.precio),
+          stock: item.stock,
+          puntuacion: Number(item.puntuacion) || 0,
+          imagen_url: item.imagen_url,
+          id_categoria: item.id_categoria,
+          nombre_categoria: item.categorias.nombre_categoria,
+          en_oferta: Boolean(item.en_oferta),
+          descuento: Number(item.descuento) || 0
+        }));
+        setFeaturedProducts(transformed);
+      } catch (err) {
+        console.error("Error al cargar productos destacados:", err);
+      }
+    };
+    fetchFeatured();
   }, []);
 
   const visibleProducts = showAll ? featuredProducts : featuredProducts.slice(0, 4);
@@ -33,13 +53,11 @@ export const FeaturedProducts: React.FC<FeaturedProductsProps> = ({ addToCart })
             <p className="text-default-500">Los productos más populares entre nuestros clientes</p>
           </div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {visibleProducts.map((product) => (
             <ProductCard key={product.id_producto} product={product} addToCart={addToCart} />
           ))}
         </div>
-
         {featuredProducts.length > 4 && (
           <div className="flex justify-center mt-6">
             {!showAll ? (
@@ -75,7 +93,6 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
   const handleAddToCart = () => {
-    console.log("Añadiendo producto al carrito:", product); // ✅ Debug
     addToCart(product);
   };
 
@@ -84,7 +101,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
       <CardBody className="p-0 overflow-hidden">
         <div className="relative h-48 bg-white flex items-center justify-center">
           <img
-            src={`http://localhost:3001${product.imagen_url}`}
+            src={product.imagen_url}
             alt={product.nombre}
             className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
           />
@@ -113,7 +130,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, addToCart }) => {
           color="primary"
           variant="flat"
           fullWidth
-          onClick={handleAddToCart} // ✅ Función separada para debug
+          onClick={handleAddToCart}
           startContent={<Icon icon="lucide:shopping-cart" />}
         >
           Añadir al Carrito

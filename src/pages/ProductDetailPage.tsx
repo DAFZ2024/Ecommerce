@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { supabase } from "../lib/supabaseClient";
 
 export interface Product {
   id_producto: number;
@@ -29,16 +30,36 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ addToCart 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/productos/${id}`);
-        const data = await res.json();
-        setProduct(data);
+        const { data, error } = await supabase
+          .from("productos")
+          .select(`*, categorias(id_categoria, nombre_categoria)`)
+          .eq("id_producto", id)
+          .single();
+        if (error) throw error;
+        if (!data) {
+          setProduct(null);
+        } else {
+          setProduct({
+            id_producto: data.id_producto,
+            nombre: data.nombre,
+            descripcion: data.descripcion,
+            precio: Number(data.precio),
+            stock: data.stock,
+            puntuacion: Number(data.puntuacion) || 0,
+            imagen_url: data.imagen_url,
+            id_categoria: data.id_categoria,
+            nombre_categoria: data.categorias?.nombre_categoria || "",
+            en_oferta: Boolean(data.en_oferta),
+            descuento: Number(data.descuento) || 0
+          });
+        }
       } catch (err) {
         console.error("Error al obtener producto:", err);
+        setProduct(null);
       } finally {
         setLoading(false);
       }
     };
-
     fetchProduct();
   }, [id]);
 
@@ -51,9 +72,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ addToCart 
         <CardBody className="p-0 overflow-hidden">
           <div className="relative h-96 bg-white flex items-center justify-center">
             <img
-              src={`http://localhost:3001${product.imagen_url}`}
+              src={product.imagen_url || "/placeholder-product.jpg"}
               alt={product.nombre}
               className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
+              onError={e => {
+                const target = e.target as HTMLImageElement;
+                target.src = "/placeholder-product.jpg";
+              }}
             />
             <Chip color="primary" variant="flat" className="absolute top-2 left-2" size="sm">
               {product.nombre_categoria}

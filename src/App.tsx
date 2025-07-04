@@ -20,6 +20,7 @@ import {
 } from "react-router-dom";
 import { Link as RouterLink } from "react-router-dom";
 import { Toaster, toast } from "react-hot-toast";
+import { supabase } from "./lib/supabaseClient";
 import { Hero } from "./components/hero";
 import { Categories } from "./components/categories";
 import { FeaturedProducts } from "./components/featured-products";
@@ -61,13 +62,16 @@ export interface CartItem extends Product {
   quantity: number;
 }
 
-// ✅ Interfaz para el usuario corregida
+// ✅ Interfaz para el usuario actualizada para Supabase
 interface User {
-  id: number; // Se mapea desde userId del token
+  id: string; // UUID de Supabase Auth
   email: string;
-  nombre: string;
+  nombre_completo: string; // Desde tabla usuarios
+  direccion?: string;
+  telefono?: string;
   rol: string;
   avatar_url: string | null;
+  foto_perfil?: string | null;
 }
 
 function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
@@ -86,7 +90,7 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
   );
 }
 
-// ✅ Función mejorada para decodificar el JWT
+// ✅ Función mejorada para decodificar el JWT (legacy, ya no se usa con Supabase)
 const getUserFromToken = (token: string): User | null => {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
@@ -94,9 +98,9 @@ const getUserFromToken = (token: string): User | null => {
     return {
       id: payload.userId || payload.id_usuario || payload.id,
       email: payload.email || payload.correo,
-      nombre: payload.nombre || payload.nombre_completo,
+      nombre_completo: payload.nombre || payload.nombre_completo,
       rol: payload.rol,
-      avatar_url: payload.avatar_url || null // Nuevo campo
+      avatar_url: payload.avatar_url || null
     };
   } catch (error) {
     console.error('❌ Error decodificando token:', error);
@@ -123,41 +127,67 @@ const isTokenValid = (token: string): boolean => {
   }
 };
 
-// Componente de ruta protegida para admin
-const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-  const token = localStorage.getItem("token");
-  const user = token && isTokenValid(token) ? getUserFromToken(token) : null;
-  
-  if (!user || user.rol !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
 function AppWrapper() {
   const [isCartOpen, setIsCartOpen] = React.useState(false);
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Product[]>([]);
   const [showDropdown, setShowDropdown] = React.useState(false);
+  const [isSearching, setIsSearching] = React.useState(false);
   const [showOfferModal, setShowOfferModal] = React.useState(false);
   const [bestOfferProduct, setBestOfferProduct] = React.useState<Product | null>(null);
   const location = useLocation();
 
+  // Componente de ruta protegida para admin (movido aquí para acceder al estado del usuario)
+  const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+    console.log('🔍 AdminRoute - Estado del usuario:', { isLoggedIn, user, rol: user?.rol });
+    
+    if (!isLoggedIn || !user || user.rol !== 'admin') {
+      console.log('❌ AdminRoute - Acceso denegado. Redirigiendo al inicio.');
+      return <Navigate to="/" replace />;
+    }
+    
+    console.log('✅ AdminRoute - Acceso permitido para admin:', user.nombre_completo);
+    return <>{children}</>;
+  };
+
    // 3. Función para obtener el producto con mayor oferta
   const fetchBestOffer = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/productos');
-      const products: Product[] = await response.json();
-      
-      // Filtrar productos en oferta y encontrar el de mayor descuento
-      const offersProducts = products.filter(product => product.en_oferta && product.descuento > 0);
-      
-      if (offersProducts.length > 0) {
-        const bestOffer = offersProducts.reduce((max, product) => 
-          product.descuento > max.descuento ? product : max
-        );
+      const { data, error } = await supabase
+        .from('productos')
+        .select(`
+          *,
+          categorias!inner(
+            id_categoria,
+            nombre_categoria
+          )
+        `)
+        .eq('en_oferta', true)
+        .gt('descuento', 0)
+        .order('descuento', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error al obtener productos en oferta:', error);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const item = data[0];
+        const bestOffer: Product = {
+          id_producto: item.id_producto,
+          nombre: item.nombre,
+          descripcion: item.descripcion,
+          precio: Number(item.precio),
+          stock: item.stock,
+          puntuacion: Number(item.puntuacion) || 0,
+          imagen_url: item.imagen_url,
+          id_categoria: item.id_categoria,
+          nombre_categoria: item.categorias.nombre_categoria,
+          en_oferta: Boolean(item.en_oferta),
+          descuento: Number(item.descuento) || 0
+        };
         
         setBestOfferProduct(bestOffer);
         
@@ -206,43 +236,49 @@ function AppWrapper() {
 
 
   
-  // ✅ Estado mejorado para autenticación
-  const [isLoggedIn, setIsLoggedIn] = React.useState(() => {
-    const token = localStorage.getItem("token");
-    return token ? isTokenValid(token) : false;
-  });
-  
-  const [user, setUser] = React.useState<User | null>(() => {
-    const token = localStorage.getItem("token");
-    if (token && isTokenValid(token)) {
-      const userData = getUserFromToken(token);
-      console.log('👤 Usuario inicial cargado:', userData);
-      return userData;
-    }
-    return null;
-  });
+  // ✅ Estado mejorado para autenticación con Supabase
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const [user, setUser] = React.useState<User | null>(null);
+
+  // Verificar sesión inicial con Supabase
+  React.useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && session.user.id) {
+        const { data: usuarioExtra } = await supabase
+          .from("usuarios")
+          .select("*")
+          .eq("id_usuario", session.user.id)
+          .single();
+        
+        if (usuarioExtra) {
+          const usuarioCombinado = {
+            id: session.user.id,
+            email: session.user.email || "",
+            nombre_completo: usuarioExtra.nombre_completo,
+            direccion: usuarioExtra.direccion,
+            telefono: usuarioExtra.telefono,
+            rol: usuarioExtra.rol,
+            avatar_url: usuarioExtra.avatar_url,
+            foto_perfil: usuarioExtra.foto_perfil
+          };
+          
+          setUser(usuarioCombinado);
+          setIsLoggedIn(true);
+        }
+      }
+    };
+    
+    checkSession();
+  }, []);
 
   const navigate = useNavigate();
 
-  // ✅ Efecto para validar token al cargar la app
-  React.useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      if (!isTokenValid(token)) {
-        console.warn('⚠️ Token inválido o expirado, limpiando sesión');
-        handleLogout();
-      } else {
-        const userData = getUserFromToken(token);
-        if (userData) {
-          console.log('✅ Usuario autenticado cargado:', userData);
-        }
-      }
-    }
-  }, []);
-
   // Función para verificar si el usuario es admin
   const isAdmin = () => {
-    return user && user.rol === 'admin';
+    const result = user && user.rol === 'admin';
+    console.log('🔍 isAdmin() llamado:', { user: user?.nombre_completo, rol: user?.rol, resultado: result });
+    return result;
   };
 
   const addToCart = (product: Product) => {
@@ -275,21 +311,79 @@ function AppWrapper() {
     );
   };
 
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
   const handleSearch = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    console.log('🔍 Búsqueda iniciada con:', value);
+    
     setSearchTerm(value);
+    
     if (value.trim() === "") {
+      console.log('📭 Búsqueda vacía, limpiando resultados');
       setSearchResults([]);
+      setShowDropdown(false);
+      setIsSearching(false);
+      return;
+    }
+
+    if (value.trim().length < 2) {
+      console.log('📝 Búsqueda muy corta, esperando más caracteres');
       setShowDropdown(false);
       return;
     }
+    
     try {
-      const res = await fetch(`http://localhost:3001/api/productos/buscar?query=${encodeURIComponent(value)}`);
-      const data = await res.json();
-      setSearchResults(data);
-      setShowDropdown(true);
+      setIsSearching(true);
+      console.log('🔎 Realizando búsqueda en Supabase...');
+      
+      const { data, error } = await supabase
+        .from('productos')
+        .select(`
+          *,
+          categorias!inner(
+            id_categoria,
+            nombre_categoria
+          )
+        `)
+        .or(`nombre.ilike.%${value}%,descripcion.ilike.%${value}%`)
+        .limit(10);
+
+      if (error) {
+        console.error("❌ Error en búsqueda:", error);
+        setSearchResults([]);
+        setShowDropdown(false);
+      } else {
+        console.log('✅ Resultados encontrados:', data?.length || 0);
+        
+        // Transformar los datos para mantener compatibilidad
+        const transformedResults: Product[] = data.map((item: any) => ({
+          id_producto: item.id_producto,
+          nombre: item.nombre,
+          descripcion: item.descripcion,
+          precio: Number(item.precio),
+          stock: item.stock,
+          puntuacion: Number(item.puntuacion) || 0,
+          imagen_url: item.imagen_url,
+          id_categoria: item.id_categoria,
+          nombre_categoria: item.categorias.nombre_categoria,
+          en_oferta: Boolean(item.en_oferta),
+          descuento: Number(item.descuento) || 0
+        }));
+        
+        setSearchResults(transformedResults);
+        setShowDropdown(transformedResults.length > 0);
+        
+        console.log('🎯 Dropdown mostrado:', transformedResults.length > 0);
+      }
     } catch (err) {
-      console.error("Error en búsqueda:", err);
+      console.error("❌ Error en búsqueda:", err);
+      setSearchResults([]);
+      setShowDropdown(false);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -298,6 +392,44 @@ function AppWrapper() {
     setSearchResults([]);
     setShowDropdown(false);
   };
+
+  // Función para manejar clic en un resultado de búsqueda
+  const handleSearchResultClick = () => {
+    clearSearch();
+  };
+
+  // Cerrar dropdown al hacer clic fuera
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const searchContainer = target.closest('.search-container');
+      
+      console.log('🖱️ Click detectado, dentro del search-container:', !!searchContainer);
+      
+      if (!searchContainer) {
+        console.log('📤 Cerrando dropdown por click fuera');
+        setShowDropdown(false);
+      }
+    };
+
+    if (showDropdown) {
+      console.log('👂 Agregando listener para clicks fuera');
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        console.log('🗑️ Removiendo listener para clicks fuera');
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showDropdown]);
+
+  // Debug del estado del dropdown
+  React.useEffect(() => {
+    console.log('🔄 Estado del dropdown:', {
+      showDropdown,
+      searchResultsLength: searchResults.length,
+      searchTerm: searchTerm.length
+    });
+  }, [showDropdown, searchResults.length, searchTerm]);
 
   const handleCartOpen = () => {
     if (!isLoggedIn) {
@@ -308,25 +440,19 @@ function AppWrapper() {
     setIsCartOpen(true);
   };
 
-  // ✅ Función mejorada para manejar login exitoso
-  const handleLoginSuccess = (token: string) => {
-    console.log('🔑 Token recibido en login:', token);
-    
-    if (!isTokenValid(token)) {
-      toast.error("Token inválido recibido");
-      return;
-    }
-    
+  // ✅ Función actualizada para manejar login exitoso con Supabase
+  const handleLoginSuccess = (token: string, usuario: any) => {
+    console.log('🔑 handleLoginSuccess llamado con:', { token: token ? 'presente' : 'ausente', usuario });
     localStorage.setItem("token", token);
-    const userData = getUserFromToken(token);
     
-    if (userData) {
-      console.log('✅ Datos de usuario extraídos:', userData);
-      setUser(userData);
+    if (usuario && usuario.id) {
+      console.log('👤 Estableciendo usuario en estado global:', usuario);
+      setUser(usuario);
       setIsLoggedIn(true);
-      toast.success(`¡Bienvenido ${userData.nombre}!`);
+      toast.success(`¡Bienvenido ${usuario.nombre_completo}!`);
       navigate("/");
     } else {
+      console.error('❌ Error: datos de usuario inválidos');
       toast.error("Error al procesar datos de usuario");
     }
   };
@@ -340,18 +466,9 @@ function AppWrapper() {
     navigate("/");
   };
 
-  // ✅ Debug en consola del estado actual
-  React.useEffect(() => {
-    console.log('🔍 Estado actual:', {
-      isLoggedIn,
-      user,
-      hasToken: !!localStorage.getItem("token")
-    });
-  }, [isLoggedIn, user]);
-
   return (
     <>
-        <Navbar maxWidth="xl" className="shadow-sm">
+        <Navbar maxWidth="xl" className="shadow-sm relative z-40">
           <NavbarBrand>
             <Icon icon="lucide:car" className="text-primary text-2xl" />
             <p className="font-bold text-inherit ml-2">AutoPartesBogota</p>
@@ -398,11 +515,11 @@ function AppWrapper() {
             
           </NavbarContent>
           <NavbarContent justify="end">
-            <NavbarItem className="hidden sm:flex relative">
-              <div className="relative w-full">
+            <NavbarItem className="hidden sm:flex">
+              <div className="relative search-container">
                 <Input
                   classNames={{
-                    base: "max-w-full sm:max-w-[15rem] h-10",
+                    base: "w-[15rem] h-10",
                     mainWrapper: "h-full",
                     input: "text-small",
                     inputWrapper:
@@ -411,29 +528,84 @@ function AppWrapper() {
                   placeholder="Buscar productos..."
                   size="sm"
                   startContent={
-                    <Icon icon="lucide:search" className="text-default-400" />
+                    isSearching ? (
+                      <Icon icon="lucide:loader-2" className="text-default-400 animate-spin" />
+                    ) : (
+                      <Icon icon="lucide:search" className="text-default-400" />
+                    )
                   }
                   type="search"
                   value={searchTerm}
                   onChange={handleSearch}
+                  onFocus={() => {
+                    console.log('🎯 Input focused, searchResults length:', searchResults.length);
+                    if (searchResults.length > 0 && searchTerm.trim().length >= 2) {
+                      setShowDropdown(true);
+                    }
+                  }}
+                  onClick={() => {
+                    console.log('🖱️ Input clicked, searchResults length:', searchResults.length);
+                    if (searchResults.length > 0 && searchTerm.trim().length >= 2) {
+                      setShowDropdown(true);
+                    }
+                  }}
                 />
-                {showDropdown && searchResults.length > 0 && (
-                  <div className="absolute z-50 top-full mt-1 w-[25rem] sm:w-[30rem] bg-white shadow-lg rounded-lg max-h-96 overflow-y-auto border border-gray-200">
-                    {searchResults.map((product) => (
-                      <RouterLink
-                        to={`/productos/${product.id_producto}`}
-                        key={product.id_producto}
-                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-800 hover:bg-gray-100"
-                        onClick={clearSearch}
-                      >
-                        <img
-                          src={`http://localhost:3001${product.imagen_url}`}
-                          alt={product.nombre}
-                          className="w-10 h-10 object-cover rounded"
-                        />
-                        <span>{product.nombre}</span>
-                      </RouterLink>
-                    ))}
+                {(showDropdown && searchTerm.trim().length >= 2) && (
+                  <div 
+                    className="absolute z-[9999] top-full mt-2 w-[400px] bg-white shadow-2xl rounded-lg max-h-96 overflow-y-auto border border-gray-200 right-0"
+                    style={{
+                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                    }}
+                  >
+                    <div className="p-2">
+                      {isSearching ? (
+                        <div className="flex items-center justify-center py-4">
+                          <Icon icon="lucide:loader-2" className="animate-spin mr-2" />
+                          <span className="text-sm text-gray-500">Buscando...</span>
+                        </div>
+                      ) : searchResults.length > 0 ? (
+                        <>
+                          <div className="text-xs text-gray-500 px-2 py-1 border-b">
+                            {searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''} encontrado{searchResults.length !== 1 ? 's' : ''}
+                          </div>
+                          {searchResults.map((product) => (
+                            <RouterLink
+                              to={`/productos/${product.id_producto}`}
+                              key={product.id_producto}
+                              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 rounded transition-colors block"
+                              onClick={handleSearchResultClick}
+                            >
+                              <img
+                                src={product.imagen_url || '/placeholder-product.jpg'}
+                                alt={product.nombre}
+                                className="w-12 h-12 object-cover rounded"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = '/placeholder-product.jpg';
+                                }}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-900 truncate">{product.nombre}</div>
+                                <div className="text-xs text-gray-500 truncate">{product.descripcion}</div>
+                                <div className="text-sm font-semibold text-green-600 mt-1">
+                                  ${product.precio.toLocaleString('es-CO')}
+                                  {product.en_oferta && product.descuento > 0 && (
+                                    <span className="ml-2 text-xs text-red-500">
+                                      -{product.descuento}% OFF
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </RouterLink>
+                          ))}
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center py-4 text-gray-500">
+                          <Icon icon="lucide:search-x" className="mr-2" />
+                          <span className="text-sm">No se encontraron productos para "{searchTerm}"</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -459,7 +631,7 @@ function AppWrapper() {
               {isLoggedIn && user ? (
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">
-                    Hola, {user.nombre}
+                    Hola, {user.nombre_completo}
                     {isAdmin() && (
                       <Badge color="warning" size="sm" className="ml-1">
                         Admin
@@ -489,7 +661,7 @@ function AppWrapper() {
           />
           <Route
             path="/contacto"
-            element={<ContactPage addToCart={addToCart} />}
+            element={<ContactPage />}
           />
           {/* Ruta protegida para admin */}
           <Route
@@ -530,12 +702,12 @@ function AppWrapper() {
         removeItem={removeFromCart}
         updateQuantity={updateQuantity}
         currentUser={user}
+        clearCart={clearCart}
       />
 
       <OfferModal
         isOpen={showOfferModal}
         onClose={handleCloseOfferModal}
-        product={bestOfferProduct}
         addToCart={addToCart}
         onViewProduct={handleViewProduct}
       />

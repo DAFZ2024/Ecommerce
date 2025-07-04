@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { Button } from "@heroui/react";
-
+import { supabase } from "../lib/supabaseClient";
 
 // Definir tipos para los datos de pago
 interface PagoInfo {
@@ -25,9 +25,10 @@ interface OrdenInfo {
   nombre_usuario: string;
   email_usuario: string;
   productos: {
-    nombre: string;
+    id_producto: number;
     cantidad: number;
     precio_unitario: number;
+    productos: { nombre: string };
   }[];
 }
 
@@ -40,51 +41,144 @@ export const Gracias = () => {
   const [loading, setLoading] = useState(true);
   const estado = queryParams.get('estado');
   const ordenId = queryParams.get('orden');
+  const transactionState = queryParams.get('transactionState') || queryParams.get('lapTransactionState') || queryParams.get('polTransactionState');
 
   // Obtener información de pago y orden
   useEffect(() => {
     const obtenerDatosPago = async () => {
-  if (!ordenId) return;
-  
-  try {
-    setLoading(true);
-    
-    // 1. Obtener pago
-    const pagoResponse = await fetch(`http://localhost:3001/api/ordenes/${ordenId}/pago`);
-    
-    if (!pagoResponse.ok) {
-      const errorText = await pagoResponse.text();
-      throw new Error(`Error pago: ${pagoResponse.status} - ${errorText}`);
-    }
-    
-    const pagoData = await pagoResponse.json();
-    setPagoInfo(pagoData);
-    
-    // 2. Obtener orden
-    const ordenResponse = await fetch(`http://localhost:3001/api/ordenes/${ordenId}`);
-    
-    if (!ordenResponse.ok) {
-      const errorText = await ordenResponse.text();
-      throw new Error(`Error orden: ${ordenResponse.status} - ${errorText}`);
-    }
-    
-    const ordenData = await ordenResponse.json();
-    setOrdenInfo(ordenData);
-    
-  } catch (error) {
-    console.error("Error obteniendo datos:", error);
-  } finally {
-    setLoading(false);
-  }
-};
-    
+      if (!ordenId) return;
+      try {
+        setLoading(true);
+        // 1. Obtener pago desde Supabase
+        const { data: pagoData, error: pagoError } = await supabase
+          .from('pagos')
+          .select('*')
+          .eq('id_orden', ordenId)
+          .maybeSingle();
+        if (pagoError) throw pagoError;
+        setPagoInfo(pagoData);
+        // 2. Obtener orden desde Supabase
+        const { data: ordenData, error: ordenError } = await supabase
+          .from('ordenes')
+          .select('*')
+          .eq('id_orden', ordenId)
+          .single();
+        if (ordenError) throw ordenError;
+        // 3. Obtener productos de la orden
+        const { data: productosData, error: productosError } = await supabase
+          .from('orden_detalle')
+          .select('id_producto, cantidad, precio_unitario, productos(nombre)')
+          .eq('id_orden', ordenId);
+        if (productosError) throw productosError;
+        setOrdenInfo({ ...ordenData, productos: productosData || [] });
+      } catch (error) {
+        console.error("Error obteniendo datos:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
     obtenerDatosPago();
   }, [ordenId]);
 
+  // Actualizar estado de la orden y el pago en Supabase si hay estado válido
+  useEffect(() => {
+    const actualizarEstado = async () => {
+      if (!ordenId) return;
+      // Mapear el estado de PayU a los valores de tu base de datos
+      let nuevoEstado = '';
+      const estadoPayU = (estado || transactionState)?.toString().toUpperCase();
+      switch (estadoPayU) {
+        case '4':
+        case 'APPROVED':
+          nuevoEstado = 'aprobado';
+          break;
+        case '6':
+        case 'DECLINED':
+          nuevoEstado = 'rechazado';
+          break;
+        case '7':
+        case 'PENDING':
+          nuevoEstado = 'pendiente';
+          break;
+        case '104':
+        case 'ERROR':
+          nuevoEstado = 'error';
+          break;
+        default:
+          return; // No actualizar si no hay estado válido
+      }
+      // Extraer datos de la URL de PayU
+      const transaction_id = queryParams.get('transactionId') || '';
+      const monto = queryParams.get('TX_VALUE') || queryParams.get('amount') || null;
+      const moneda = queryParams.get('currency') || 'COP';
+      const numero_tarjeta = queryParams.get('cc_number') || queryParams.get('lapPaymentMethod') || '';
+      const processing_date = queryParams.get('processingDate') || null;
+      const firma = queryParams.get('signature') || '';
+      // Actualizar estado en ordenes
+      await supabase
+        .from('ordenes')
+        .update({ estado: nuevoEstado })
+        .eq('id_orden', ordenId);
+      // Actualizar estado y datos en pagos
+      await supabase
+        .from('pagos')
+        .update({
+          estado: nuevoEstado,
+          transaction_id,
+          monto: monto ? Number(monto) : null,
+          moneda,
+          numero_tarjeta,
+          processing_date: processing_date ? new Date(processing_date) : null,
+          firma
+        })
+        .eq('id_orden', ordenId);
+    };
+    actualizarEstado();
+  }, [ordenId, estado, transactionState]);
+
+  // Descontar stock real solo si la orden está aprobada y no se ha descontado antes
+  useEffect(() => {
+    const descontarStockSiEsAprobado = async () => {
+      if (!ordenInfo || ordenInfo.productos.length === 0) return;
+      // Obtener la orden para verificar estado y si ya se descontó stock
+      const { data: ordenDB, error: ordenError } = await supabase
+        .from('ordenes')
+        .select('estado, stock_actualizado')
+        .eq('id_orden', ordenInfo.id_orden)
+        .single();
+      if (ordenError) return;
+      if (ordenDB.estado === 'aprobado' && !ordenDB.stock_actualizado) {
+        // Descontar stock de cada producto
+        for (const item of ordenInfo.productos) {
+          const { data, error: fetchError } = await supabase
+            .from('productos')
+            .select('stock')
+            .eq('id_producto', item.id_producto)
+            .single();
+          if (fetchError || !data) continue;
+          const nuevoStock = Math.max((data.stock || 0) - item.cantidad, 0);
+          await supabase
+            .from('productos')
+            .update({ stock: nuevoStock })
+            .eq('id_producto', item.id_producto);
+        }
+        // Marcar la orden como stock descontado
+        await supabase
+          .from('ordenes')
+          .update({ stock_actualizado: true })
+          .eq('id_orden', ordenInfo.id_orden);
+      }
+    };
+    descontarStockSiEsAprobado();
+  }, [ordenInfo]);
+
   // Determinar estado y colores
   const getStatusInfo = () => {
-    switch (estado) {
+    // Mapear el estado de PayU a los estados internos
+    const estadoPago = estado || transactionState;
+    switch (estadoPago) {
       case '4': // Aprobado
+      case 'APPROVED':
         return {
           icon: 'mdi:check-circle',
           color: 'text-green-500',
@@ -92,15 +186,17 @@ export const Gracias = () => {
           title: '¡Pago Completado!',
           message: 'Tu pago ha sido procesado exitosamente'
         };
-      case '6': // Cancelado
+      case '6': // Cancelado/Declinado
+      case 'DECLINED':
         return {
           icon: 'mdi:cancel',
           color: 'text-red-500',
           bgColor: 'bg-red-50',
           title: 'Pago Cancelado',
-          message: 'Tu pago fue cancelado'
+          message: 'Tu pago fue cancelado o rechazado'
         };
       case '7': // Pendiente
+      case 'PENDING':
         return {
           icon: 'mdi:clock',
           color: 'text-yellow-500',
@@ -109,6 +205,7 @@ export const Gracias = () => {
           message: 'Estamos procesando tu pago'
         };
       case '104': // Error
+      case 'ERROR':
         return {
           icon: 'mdi:alert-circle',
           color: 'text-red-500',
@@ -154,7 +251,11 @@ export const Gracias = () => {
           <p className="text-gray-600 text-lg">
             {statusInfo.message}
           </p>
-          
+          {!pagoInfo && (
+            <div className="mt-6 text-red-500 font-semibold">
+              No se ha registrado el pago para esta orden aún.
+            </div>
+          )}
           {pagoInfo && (
             <div className="mt-6">
               <p className="text-gray-700">
@@ -182,7 +283,7 @@ export const Gracias = () => {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500">Total</h3>
                   <p className="text-xl font-bold text-gray-900">
-                    ${Number(ordenInfo.total).toFixed(2)} {ordenInfo.productos[0]?.moneda || 'COP'}
+                    ${Number(ordenInfo.total).toFixed(2)} COP
                   </p>
                 </div>
               </div>
@@ -196,19 +297,23 @@ export const Gracias = () => {
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Productos</h3>
                 <ul className="divide-y divide-gray-200">
-                  {ordenInfo.productos.map((producto, index) => (
-                    <li key={index} className="py-3 flex justify-between">
-                      <div>
-                        <p className="font-medium text-gray-900">{producto.nombre}</p>
-                        <p className="text-gray-600">
-                          {producto.cantidad} x ${Number(producto.precio_unitario).toFixed(2)}
+                  {Array.isArray(ordenInfo.productos) && ordenInfo.productos.length > 0 ? (
+                    ordenInfo.productos.map((producto, index) => (
+                      <li key={index} className="py-3 flex justify-between">
+                        <div>
+                          <p className="font-medium text-gray-900">{producto.productos?.nombre || 'Sin nombre'}</p>
+                          <p className="text-gray-600">
+                            {producto.cantidad} x ${Number(producto.precio_unitario).toFixed(2)}
+                          </p>
+                        </div>
+                        <p className="font-medium text-gray-900">
+                          {`$${(producto.cantidad * Number(producto.precio_unitario)).toFixed(2)}`}
                         </p>
-                      </div>
-                      <p className="font-medium text-gray-900">
-                        {`$${(producto.cantidad * Number(producto.precio_unitario)).toFixed(2)}`}
-                      </p>
-                    </li>
-                  ))}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="py-3 text-gray-500">No hay productos en esta orden.</li>
+                  )}
                 </ul>
               </div>
             </div>
@@ -250,17 +355,15 @@ export const Gracias = () => {
 
         <div className="flex justify-center gap-4">
           <Button 
-            variant="primary" 
+            variant="solid" 
             onClick={() => navigate('/')}
             className="px-6 py-3"
           >
             Volver al inicio
           </Button>
-          
-          
         </div>
       </div>
     </div>
   );
 };
-export default Gracias; 
+export default Gracias;

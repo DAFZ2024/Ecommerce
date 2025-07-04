@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Input, Button, Tab, Tabs } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { supabase } from "../lib/supabaseClient";
 
 interface AuthPageProps {
   onLoginSuccess: (token: string, usuario: any) => void;
@@ -27,21 +28,57 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
 
   const handleLogin = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginData)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginData.correo,
+        password: loginData.contrasena,
       });
-      const data = await res.json();
-      if (res.ok) {
-        console.log("✅ Sesión iniciada:", data);
-        setUsuarioLogueado(data.usuario);
-        localStorage.setItem("token", data.token); // opcional para mantener sesión
-        showAlert("success", `Bienvenido, ${data.usuario.nombre_completo}`);
-        onLoginSuccess(data.token, data.usuario);  // <-- Aquí llamamos al prop
-      } else {
-        showAlert("error", data.error || "Error al iniciar sesión");
+      
+      if (error || !data.user) {
+        showAlert("error", error?.message || "Error al iniciar sesión");
+        return;
       }
+      
+      if (!data.user.id) {
+        showAlert("error", "Usuario sin ID válido. Verifica la configuración de Supabase Auth.");
+        return;
+      }
+      
+      // Obtener datos adicionales del usuario
+      const { data: usuarioExtra, error: errorUsuario } = await supabase
+        .from("usuarios")
+        .select("*")
+        .eq("id_usuario", data.user.id)
+        .single();
+      if (errorUsuario) {
+        showAlert("error", "No se pudo obtener datos del usuario");
+        return;
+      }
+      
+      // Verificar el rol del usuario desde la tabla usuarios
+      const esAdmin = usuarioExtra.rol === 'admin';
+      
+      // Estructura correcta del usuario combinado
+      const usuarioCombinado = {
+        id: data.user.id, // ID de Supabase Auth
+        email: data.user.email || "",
+        nombre_completo: usuarioExtra.nombre_completo,
+        direccion: usuarioExtra.direccion,
+        telefono: usuarioExtra.telefono,
+        rol: usuarioExtra.rol,
+        avatar_url: usuarioExtra.avatar_url,
+        foto_perfil: usuarioExtra.foto_perfil
+      };
+      
+      setUsuarioLogueado(usuarioCombinado);
+      localStorage.setItem("token", data.session?.access_token || "");
+      
+      if (esAdmin) {
+        showAlert("success", `Bienvenido Admin, ${usuarioExtra.nombre_completo}. Puedes acceder al panel de administración desde la barra de navegación.`);
+      } else {
+        showAlert("success", `Bienvenido, ${usuarioExtra.nombre_completo}`);
+      }
+      
+      onLoginSuccess(data.session?.access_token || "", usuarioCombinado);
     } catch (err) {
       console.error("❌ Error al iniciar sesión:", err);
       showAlert("error", "Error de conexión al iniciar sesión");
@@ -50,23 +87,42 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
 
   const handleRegister = async () => {
     try {
-      const res = await fetch("http://localhost:3001/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(registerData)
+      const { data, error } = await supabase.auth.signUp({
+        email: registerData.correo,
+        password: registerData.contrasena,
       });
-      const data = await res.json();
-      if (res.ok) {
-        showAlert("success", "✅ Registro exitoso. Ahora inicia sesión.");
-        setActiveTab("login");
-        setRegisterData({ nombre_completo: "", correo: "", contrasena: "", telefono: "", direccion: "" });
-      } else {
-        showAlert("error", data.error || "Error al registrarse");
+      if (error || !data.user) {
+        showAlert("error", error?.message || "Error al registrarse");
+        return;
       }
+      // Insertar datos adicionales en la tabla usuarios
+      const { error: errorInsert } = await supabase.from("usuarios").insert([
+        {
+          id_usuario: data.user.id,
+          nombre_completo: registerData.nombre_completo,
+          direccion: registerData.direccion,
+          telefono: registerData.telefono,
+          avatar_url: null,
+          foto_perfil: null,
+          rol: "cliente",
+        },
+      ]);
+      if (errorInsert) {
+        showAlert("error", "Registro en auth exitoso, pero error al guardar datos adicionales");
+        return;
+      }
+      showAlert("success", "✅ Registro exitoso. Ahora inicia sesión.");
+      setActiveTab("login");
+      setRegisterData({ nombre_completo: "", correo: "", contrasena: "", telefono: "", direccion: "" });
     } catch (err) {
       console.error("❌ Error al registrar:", err);
       showAlert("error", "Error de conexión al registrarse");
     }
+  };
+
+  const handleLogout = () => {
+    setUsuarioLogueado(null);
+    localStorage.removeItem("token");
   };
 
   return (
@@ -89,7 +145,15 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
             <p className="text-lg font-medium">
               Estás logueado como <span className="font-bold">{usuarioLogueado.nombre_completo}</span>
             </p>
-            <Button color="destructive" onClick={() => setUsuarioLogueado(null)}>
+            <p className="text-sm text-gray-600">
+              Rol: <span className="font-semibold capitalize">{usuarioLogueado.rol}</span>
+            </p>
+            {usuarioLogueado.rol === 'admin' && (
+              <p className="text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                Como administrador, puedes acceder al panel de control desde la barra de navegación.
+              </p>
+            )}
+            <Button color="danger" onClick={handleLogout}>
               <Icon icon="lucide:log-out" className="mr-2" />
               Cerrar sesión
             </Button>

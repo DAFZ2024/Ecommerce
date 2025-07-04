@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Card, CardBody } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import axios from "axios";
+import { supabase } from "../lib/supabaseClient";
 
 export const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -29,9 +29,22 @@ export const ContactPage: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      const res = await axios.post("/api/contactos", formData);
-      setSuccessMessage(res.data.message);
-      setFormData({ nombre: "", correo: "", mensaje: "" });
+      const { error } = await supabase.from("contactos").insert([
+        {
+          nombre: formData.nombre,
+          correo: formData.correo,
+          mensaje: formData.mensaje,
+        },
+      ]);
+      if (error) {
+        setErrorMessage("Error al enviar el mensaje, intenta de nuevo.");
+        console.error(error);
+      } else {
+        setSuccessMessage(
+          "¡Mensaje enviado correctamente! Nos pondremos en contacto pronto."
+        );
+        setFormData({ nombre: "", correo: "", mensaje: "" });
+      }
     } catch (error) {
       setErrorMessage("Error al enviar el mensaje, intenta de nuevo.");
       console.error(error);

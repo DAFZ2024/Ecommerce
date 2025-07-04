@@ -19,6 +19,8 @@ import { Icon } from "@iconify/react";
 import { Product } from "../App";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "../lib/supabaseClient";
+import CryptoJS from "crypto-js";
 
 export interface CartItem extends Product {
   quantity: number;
@@ -30,7 +32,7 @@ interface ShoppingCartProps {
   items: CartItem[];
   removeItem: (id: number) => void;
   updateQuantity: (id: number, quantity: number) => void;
-  currentUser?: { id: number; email: string; nombre: string } | null;
+  currentUser?: { id: string; email: string; nombre_completo?: string } | null;
   clearCart: () => void;
 }
 
@@ -40,14 +42,81 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
   items,
   removeItem,
   updateQuantity,
-  currentUser,
+  currentUser: propUser,
   clearCart,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<null | 'success' | 'error' | 'pending'>(null);
   const { isOpen: isModalOpen, onOpen: onModalOpen, onClose: onModalClose } = useDisclosure();
   const [paymentMessage, setPaymentMessage] = useState("");
+  const [currentUser, setCurrentUser] = useState<typeof propUser>(propUser || null);
+  const [isUserLoading, setIsUserLoading] = useState(!propUser);
   const navigate = useNavigate();
+
+  // Detectar usuario logueado con Supabase si no se pasa por props
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUser = async () => {
+      setIsUserLoading(true);
+      
+      // Intentar obtener la sesión activa primero
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (session?.user && session.user.id) {
+        const user = session.user;
+        const { data: usuarioExtra } = await supabase
+          .from("usuarios")
+          .select("nombre_completo")
+          .eq("id_usuario", user.id)
+          .single();
+        
+        if (isMounted) {
+          setCurrentUser({
+            id: user.id,
+            email: user.email || "",
+            nombre_completo: usuarioExtra?.nombre_completo || user.email || "",
+          });
+        }
+      } else {
+        // Fallback a getUser si no hay sesión
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (user && user.id) {
+          const { data: usuarioExtra } = await supabase
+            .from("usuarios")
+            .select("nombre_completo")
+            .eq("id_usuario", user.id)
+            .single();
+          
+          if (isMounted) {
+            setCurrentUser({
+              id: user.id,
+              email: user.email || "",
+              nombre_completo: usuarioExtra?.nombre_completo || user.email || "",
+            });
+          }
+        } else if (isMounted) {
+          setCurrentUser(null);
+        }
+      }
+      if (isMounted) setIsUserLoading(false);
+    };
+
+    if (!propUser) {
+      fetchUser();
+      // Suscribirse a cambios de sesión de Supabase
+      const { data: listener } = supabase.auth.onAuthStateChange(() => {
+        fetchUser();
+      });
+      return () => {
+        isMounted = false;
+        listener?.subscription.unsubscribe();
+      };
+    } else {
+      setCurrentUser(propUser);
+      setIsUserLoading(false);
+    }
+  }, [propUser]);
 
   const subtotal = items.reduce((sum, item) => sum + (Number(item.precio) * item.quantity), 0);
   const shipping = items.length > 0 ? 5.99 : 0;
@@ -69,85 +138,138 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
     onModalOpen();
 
     try {
-      if (!currentUser || !currentUser.id) {
-        throw new Error('Debes iniciar sesión para realizar el pago');
-      }
+      if (!currentUser?.id) throw new Error('Debes iniciar sesión para realizar el pago');
+      if (!items || items.length === 0) throw new Error('El carrito está vacío');
 
-      if (!items || items.length === 0) {
-        throw new Error('El carrito está vacío');
-      }
+      // 1. Crear la orden en Supabase
+      const { data: orden, error: ordenError } = await supabase
+        .from('ordenes')
+        .insert([
+          {
+            id_usuario: currentUser.id,
+            total: total,
+            email_usuario: currentUser.email,
+            nombre_usuario: currentUser.nombre_completo,
+            // estado: 'pendiente', // dejar que el default lo ponga
+            // moneda: 'COP', // dejar que el default lo ponga
+          },
+        ])
+        .select('*')
+        .single();
+      if (ordenError || !orden) throw new Error('No se pudo crear la orden');
 
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Sesión expirada');
-      }
+      // 2. Crear el detalle de la orden
+      const detalles = items.map((item) => ({
+        id_orden: orden.id_orden,
+        id_producto: item.id_producto,
+        cantidad: item.quantity,
+        precio_unitario: Number(item.precio),
+      }));
+      const { error: detalleError } = await supabase
+        .from('orden_detalle')
+        .insert(detalles);
+      if (detalleError) throw new Error('No se pudo crear el detalle de la orden');
 
-      const response = await axios.post("http://localhost:3001/api/payu/payment", {
-        cartItems: items.map(item => ({
-          id_producto: item.id_producto,
-          nombre: item.nombre,
-          precio: Number(item.precio),
-          quantity: item.quantity
-        })),
-        id_usuario: currentUser.id,
-        usuario_info: {
-          email: currentUser.email,
-          nombre: currentUser.nombre
-        }
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      // 3. Generar datos de PayU
+      const merchantId = '508029'; // Sandbox
+      const accountId = '512321'; // Sandbox
+      const apiKey = '4Vj8eK4rloUd272L48hsrarnUA'; // Sandbox
+      const referenceCode = `ORD-${orden.id_orden}-${Date.now()}`;
+      const amount = total.toFixed(2);
+      const currency = 'COP';
+      const buyerEmail = currentUser.email;
+      const description = `Pago orden #${orden.id_orden}`;
+      const signatureRaw = `${apiKey}~${merchantId}~${referenceCode}~${amount}~${currency}`;
+      const signature = CryptoJS.MD5(signatureRaw).toString();
+      const payuUrl = 'https://sandbox.checkout.payulatam.com/ppp-web-gateway-payu/';
+      const responseUrl = `${window.location.origin}/gracias?orden=${orden.id_orden}`;
+      const confirmationUrl = `${window.location.origin}/api/payu/confirmation`;
+
+      // 4. Registrar el pago como pendiente en Supabase
+      await supabase.from('pagos').insert([
+        {
+          id_orden: orden.id_orden,
+          id_usuario: currentUser.id,
+          metodo_pago: 'payu',
+          estado: 'pendiente',
+          monto: amount,
+          moneda: currency,
         },
-        responseType: 'text'
+      ]);
+
+      // 5. Crear y enviar el formulario a PayU
+      const form = document.createElement('form');
+      form.action = payuUrl;
+      form.method = 'POST';
+      form.target = '_self';
+      form.style.display = 'none';
+      const fields = {
+        merchantId,
+        accountId,
+        description,
+        referenceCode,
+        amount,
+        tax: '0',
+        taxReturnBase: '0',
+        currency,
+        signature,
+        test: '1',
+        buyerEmail,
+        responseUrl,
+        confirmationUrl,
+        shippingAddress: '',
+        shippingCity: '',
+        shippingCountry: 'CO',
+        // Puedes agregar más campos según tu integración
+      };
+      Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        form.appendChild(input);
       });
-
-      // Crear formulario oculto y enviarlo en la misma ventana
-      const formContainer = document.createElement('div');
-      formContainer.innerHTML = response.data;
-      document.body.appendChild(formContainer);
-      const form = formContainer.querySelector('form');
-      
-      if (form) {
-        // Cerrar el carrito después de enviar el formulario
-        setTimeout(() => {
-          onClose();
-        }, 500);
-        
+      document.body.appendChild(form);
+      setTimeout(() => {
+        onClose();
         form.submit();
-      } else {
-        throw new Error('No se pudo crear el formulario de pago');
-      }
-
+      }, 500);
     } catch (error) {
       setIsProcessing(false);
       setPaymentStatus('error');
-      
-      if (error instanceof Error) {
-        setPaymentMessage(error.message || 'Error al procesar el pago');
-      } else if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          setPaymentMessage('Tu sesión ha expirado. Por favor, inicia sesión nuevamente.');
-          localStorage.removeItem('token');
-          setTimeout(() => navigate('/auth'), 2000);
-        } else if (error.response?.status === 403) {
-          setPaymentMessage('No tienes permisos para realizar esta acción.');
-        } else if (error.response?.status === 400) {
-          setPaymentMessage(`Error en los datos: ${error.response?.data?.error || 'Verifica los datos del carrito'}`);
-        } else if (error.response?.status === 404) {
-          setPaymentMessage('Usuario no encontrado. Por favor, inicia sesión nuevamente.');
-        } else {
-          setPaymentMessage(`Error del servidor: ${error.response?.data?.error || 'Error desconocido'}`);
-        }
-      } else {
-        setPaymentMessage('Error de conexión. Verifica tu internet e inténtalo de nuevo.');
+      setPaymentMessage(error instanceof Error ? error.message : 'Error al procesar el pago');
+    }
+  };
+
+  // Actualiza el stock real en Supabase tras pago exitoso
+  const actualizarStockReal = async (cartItems: CartItem[]) => {
+    for (const item of cartItems) {
+      // Obtener el stock actual del producto
+      const { data, error: fetchError } = await supabase
+        .from('productos')
+        .select('stock')
+        .eq('id_producto', item.id_producto)
+        .single();
+      if (fetchError || !data) {
+        console.error(`Error obteniendo stock para producto ${item.id_producto}:`, fetchError);
+        continue;
+      }
+      const nuevoStock = Math.max((data.stock || 0) - item.quantity, 0);
+      const { error } = await supabase
+        .from('productos')
+        .update({ stock: nuevoStock })
+        .eq('id_producto', item.id_producto);
+      if (error) {
+        console.error(`Error actualizando stock para producto ${item.id_producto}:`, error);
       }
     }
   };
 
-  const handleSuccessfulPayment = () => {
+  const handleSuccessfulPayment = async () => {
     setPaymentStatus('success');
     setPaymentMessage('¡Pago realizado con éxito!');
+    // Descontar stock real en Supabase
+    await actualizarStockReal(items);
     clearCart();
     setTimeout(() => {
       onModalClose();
@@ -189,7 +311,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
               <div className="text-sm text-indigo-100 mt-1">
                 <div className="flex items-center gap-2">
                   <Icon icon="lucide:user" className="text-green-300" />
-                  <span>Logueado como: {currentUser.nombre || currentUser.email}</span>
+                  <span>Logueado como: {currentUser.nombre_completo || currentUser.email}</span>
                 </div>
                 <div className="text-xs text-indigo-200 ml-6">
                   ID: {currentUser.id} | {currentUser.email}
@@ -250,7 +372,7 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
                     >
                       <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-gray-200">
                         <Image
-                          src={`http://localhost:3001${item.imagen_url}`}
+                          src={item.imagen_url}
                           alt={item.nombre}
                           className="w-full h-full object-cover"
                           removeWrapper
@@ -321,44 +443,53 @@ export const ShoppingCart: React.FC<ShoppingCartProps> = ({
                   </div>
                 </div>
                 
-                {currentUser && currentUser.id ? (
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }} 
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full"
-                  >
-                    <Button
-                      color="primary"
-                      fullWidth
-                      size="lg"
-                      onClick={handlePayU}
-                      isLoading={isProcessing}
-                      endContent={<Icon icon="lucide:credit-card" />}
-                      className="shadow-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
-                    >
-                      Proceder al Pago
-                    </Button>
+                {isUserLoading ? (
+                  <motion.div className="w-full flex justify-center py-2">
+                    <Icon icon="lucide:loader" className="animate-spin text-indigo-500 text-2xl" />
+                    <span className="ml-2 text-indigo-500">Verificando sesión...</span>
                   </motion.div>
                 ) : (
-                  <motion.div 
-                    whileHover={{ scale: 1.02 }} 
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full"
-                  >
-                    <Button
-                      color="warning"
-                      fullWidth
-                      size="lg"
-                      onClick={() => {
-                        alert('Debes iniciar sesión para realizar el pago');
-                        onClose();
-                      }}
-                      endContent={<Icon icon="lucide:user" />}
-                      className="shadow-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
-                    >
-                      Iniciar Sesión para Pagar
-                    </Button>
-                  </motion.div>
+                  <>
+                    {currentUser && currentUser.id ? (
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }} 
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full"
+                      >
+                        <Button
+                          color="primary"
+                          fullWidth
+                          size="lg"
+                          onClick={handlePayU}
+                          isLoading={isProcessing}
+                          endContent={<Icon icon="lucide:credit-card" />}
+                          className="shadow-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
+                        >
+                          Proceder al Pago
+                        </Button>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        whileHover={{ scale: 1.02 }} 
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full"
+                      >
+                        <Button
+                          color="warning"
+                          fullWidth
+                          size="lg"
+                          onClick={() => {
+                            alert('Debes iniciar sesión para realizar el pago');
+                            onClose();
+                          }}
+                          endContent={<Icon icon="lucide:user" />}
+                          className="shadow-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                        >
+                          Iniciar Sesión para Pagar
+                        </Button>
+                      </motion.div>
+                    )}
+                  </>
                 )}
                 
                 <motion.div whileHover={{ scale: 1.02 }} className="w-full">

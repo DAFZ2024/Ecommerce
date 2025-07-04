@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardBody, CardFooter, Button, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import Swal from 'sweetalert2';
-import axios from "axios";
-import { StyledTabs, TabType } from '../components/StyledTabs';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
-import { Users, Grid3X3, Box, Mail, ShoppingBag, Receipt, Wallet, TrendingUp, TrendingDown, DollarSign, Package, ShoppingCart, Star} from "lucide-react";
+import { supabase } from "../lib/supabaseClient";
+import { TabType } from '../components/StyledTabs';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { Users, Grid3X3, Box, Mail, ShoppingBag, Receipt, Wallet, TrendingUp, DollarSign, Package, ShoppingCart} from "lucide-react";
 import { motion,  AnimatePresence } from "framer-motion";
 
 
+// Tipos actualizados para Supabase
 type Usuario = {
-  id_usuario: number;
+  id_usuario: string; // UUID en Supabase
   nombre_completo: string;
-  correo: string;
-  contrasena: string;
-  rol: "cliente" | "admin";
   direccion: string;
   telefono: string;
+  rol: "cliente" | "admin";
+  avatar_url: string | null;
+  foto_perfil: string | null;
 };
 
 type Categoria = {
@@ -37,7 +38,6 @@ type Producto = {
   descuento: number;
 };
 
-
 type Contacto = {
   id_contacto: number;
   nombre: string;
@@ -48,7 +48,7 @@ type Contacto = {
 
 type Carrito = {
   id_carrito: number;
-  id_usuario: number;
+  id_usuario: string; // UUID
   fecha_creado: string;
   usuario_nombre?: string;
 };
@@ -64,10 +64,14 @@ type CarritoDetalle = {
 
 type Orden = {
   id_orden: number;
-  id_usuario: number;
+  id_usuario: string; // UUID
   fecha: string;
   total: number;
   estado: 'pendiente' | 'pagado' | 'cancelado';
+  email_usuario?: string;
+  nombre_usuario?: string;
+  fecha_actualizacion?: string;
+  moneda?: string;
   usuario_nombre?: string;
 };
 
@@ -83,8 +87,8 @@ type OrdenDetalle = {
 type Pago = {
   id_pago: number;
   id_orden: number;
-  id_usuario: number;
-  metodo_pago: 'tarjeta';
+  id_usuario: string; // UUID
+  metodo_pago: string;
   numero_tarjeta: string;
   fecha_pago: string;
   processing_date: string;
@@ -94,7 +98,6 @@ type Pago = {
   moneda: string;
   firma: string;
   fecha_actualizacion: string;
-
 };
 
 const tabsConfig: Record<TabType, {
@@ -153,9 +156,9 @@ const [busquedaCarritoUsuario, setBusquedaCarritoUsuario] = useState('');
 const [busquedaPagoUsuario, setBusquedaPagoUsuario] = useState('');
 const [busquedaCorreo, setBusquedaCorreo] = useState('');
 const [estadisticas, setEstadisticas] = useState({
-  ventasPorMes: [],
-  productosMasVendidos: [],
-  ventasPorCategoria: [],
+  ventasPorMes: [] as Array<{mes: string, ventas: number, ordenes: number}>,
+  productosMasVendidos: [] as Array<{nombre: string, cantidad: number, ingresos: number}>,
+  ventasPorCategoria: [] as Array<{nombre: string, ventas: number, cantidad: number}>,
   resumenGeneral: {
     totalVentas: 0,
     totalOrdenes: 0,
@@ -175,7 +178,8 @@ const [estadisticas, setEstadisticas] = useState({
   // Estados para formulario de productos
   const [showProductoForm, setShowProductoForm] = useState(false);
   const [editProductoId, setEditProductoId] = useState<number | null>(null);
-  const [imagenArchivo, setImagenArchivo] = useState(null);
+  const [imagenArchivo, setImagenArchivo] = useState<File | null>(null);
+  const [subiendoImagen, setSubiendoImagen] = useState(false);
   const [productoForm, setProductoForm] = useState({
     nombre: "",
     descripcion: "",
@@ -188,9 +192,9 @@ const [estadisticas, setEstadisticas] = useState({
     descuento: "0"
   });
 
-  // Estados para formulario de usuarios
+  // Estados para formulario de usuarios - actualizado para Supabase
   const [showUsuarioForm, setShowUsuarioForm] = useState(false);
-  const [editUsuarioId, setEditUsuarioId] = useState<number | null>(null);
+  const [editUsuarioId, setEditUsuarioId] = useState<string | null>(null); // UUID string
   const [usuarioForm, setUsuarioForm] = useState({
     nombre_completo: "",
     correo: "",
@@ -260,11 +264,11 @@ useEffect(() => {
       if (usuario) {
         setUsuarioForm({
           nombre_completo: usuario.nombre_completo,
-          correo: usuario.correo,
+          correo: "", // No tenemos el correo en la tabla usuarios de Supabase
           contrasena: "", // No mostramos la contraseña hasheada
           rol: usuario.rol,
-          direccion: usuario.direccion,
-          telefono: usuario.telefono
+          direccion: usuario.direccion || "",
+          telefono: usuario.telefono || ""
         });
       }
     } else {
@@ -277,74 +281,139 @@ useEffect(() => {
         telefono: ""
       });
     }
-  }, [editUsuarioId]);
+  }, [editUsuarioId, usuarios]);
 
-  // Actualizar la función fetchAllData para incluir las nuevas tablas
+  // Actualizar la función fetchAllData para usar Supabase
 const fetchAllData = async () => {
   try {
-    const [
-      resAdmins, 
-      resClientes, 
-      resCategorias, 
-      resProductos,
-      resContactos,
-      resCarritos,
-      resOrdenes,
-      resPagos
-    ] = await Promise.all([
-      axios.get("/api/usuarios-rol/admin"),
-      axios.get("/api/usuarios-rol/cliente"),
-      axios.get("/api/categorias"),
-      axios.get("/api/productos"),
-      axios.get("/api/contactos"),
-      axios.get("/api/carritos"),
-      axios.get("/api/ordenes"),
-      axios.get("/api/pagos")
-    ]);
+    // Obtener usuarios
+    const { data: usuariosData, error: usuariosError } = await supabase
+      .from('usuarios')
+      .select('*');
     
-    setUsuarios([...resAdmins.data, ...resClientes.data]);
-    setCategorias(resCategorias.data);
-    setProductos(resProductos.data);
-    setContactos(resContactos.data);
-    setCarritos(resCarritos.data);
-    setOrdenes(resOrdenes.data);
-    setPagos(resPagos.data);
+    if (usuariosError) throw usuariosError;
+
+    // Obtener categorías
+    const { data: categoriasData, error: categoriasError } = await supabase
+      .from('categorias')
+      .select('*')
+      .order('id_categoria');
     
-    // Obtener detalles de carritos y órdenes
-    if (resCarritos.data.length > 0) {
-      const detalles = await axios.get(`/api/carritos/detalles`);
-      setCarritoDetalles(detalles.data);
+    if (categoriasError) throw categoriasError;
+
+    // Obtener productos con categorías
+    const { data: productosData, error: productosError } = await supabase
+      .from('productos')
+      .select(`
+        *,
+        categorias (
+          id_categoria,
+          nombre_categoria
+        )
+      `)
+      .order('id_producto');
+    
+    if (productosError) throw productosError;
+
+    // Obtener contactos
+    const { data: contactosData, error: contactosError } = await supabase
+      .from('contactos')
+      .select('*')
+      .order('fecha', { ascending: false });
+    
+    if (contactosError) throw contactosError;
+
+    // Obtener carritos
+    const { data: carritosData, error: carritosError } = await supabase
+      .from('carrito')
+      .select('*')
+      .order('fecha_creado', { ascending: false });
+    
+    if (carritosError) throw carritosError;
+
+    // Obtener órdenes
+    const { data: ordenesData, error: ordenesError } = await supabase
+      .from('ordenes')
+      .select('*')
+      .order('fecha', { ascending: false });
+    
+    if (ordenesError) throw ordenesError;
+
+    // Obtener pagos
+    const { data: pagosData, error: pagosError } = await supabase
+      .from('pagos')
+      .select('*')
+      .order('fecha_pago', { ascending: false });
+    
+    if (pagosError) throw pagosError;
+
+    // Establecer los datos en el estado
+    setUsuarios(usuariosData || []);
+    setCategorias(categoriasData || []);
+    setProductos(productosData || []);
+    setContactos(contactosData || []);
+    setCarritos(carritosData || []);
+    setOrdenes(ordenesData || []);
+    setPagos(pagosData || []);
+    
+    // Obtener detalles de carritos si hay carritos
+    if (carritosData && carritosData.length > 0) {
+      const { data: carritoDetallesData, error: carritoDetallesError } = await supabase
+        .from('carrito_detalle')
+        .select(`
+          *,
+          productos (
+            nombre
+          )
+        `);
+      
+      if (!carritoDetallesError) {
+        setCarritoDetalles(carritoDetallesData || []);
+      }
     }
     
-    if (resOrdenes.data.length > 0) {
-      const detalles = await axios.get(`/api/ordenes/detalles`);
-      setOrdenDetalles(detalles.data);
+    // Obtener detalles de órdenes si hay órdenes
+    if (ordenesData && ordenesData.length > 0) {
+      const { data: ordenDetallesData, error: ordenDetallesError } = await supabase
+        .from('orden_detalle')
+        .select(`
+          *,
+          productos (
+            nombre
+          )
+        `);
+      
+      if (!ordenDetallesError) {
+        setOrdenDetalles(ordenDetallesData || []);
+      }
     }
+
+    console.log('✅ Datos cargados desde Supabase:', {
+      usuarios: usuariosData?.length,
+      categorias: categoriasData?.length,
+      productos: productosData?.length,
+      contactos: contactosData?.length,
+      carritos: carritosData?.length,
+      ordenes: ordenesData?.length,
+      pagos: pagosData?.length
+    });
+
   } catch (error) {
-    console.error("Error al cargar datos", error);
+    console.error("❌ Error al cargar datos desde Supabase:", error);
+    Swal.fire('Error', 'No se pudieron cargar los datos. Verifica la conexión a Supabase.', 'error');
   }
 };
 
 
   //funciones para estadisticas 
 
-  // Agregar esta función para calcular estadísticas
+// Agregar esta función para calcular estadísticas - tipos corregidos
 const calcularEstadisticas = () => {
   // Ventas por mes (últimos 6 meses)
-  const ventasPorMes = [];
+  const ventasPorMes: Array<{mes: string, ventas: number, ordenes: number}> = [];
   const meses = [
-    "Ene",
-    "Feb",
-    "Mar",
-    "Abr",
-    "May",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dic",
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
   ];
   const fechaActual = new Date();
 
@@ -379,7 +448,7 @@ const calcularEstadisticas = () => {
   }
 
   // Productos más vendidos
-  const ventasProductos = {};
+  const ventasProductos: Record<number, {nombre: string, cantidad: number, ingresos: number}> = {};
   ordenDetalles.forEach((detalle) => {
     const orden = ordenes.find(
       (o) => o.id_orden === detalle.id_orden && o.estado === "pagado"
@@ -414,34 +483,33 @@ const calcularEstadisticas = () => {
     .slice(0, 5);
 
   // Ventas por categoría
-const ventasPorCategoria = {};
-categorias.forEach(categoria => {
-  ventasPorCategoria[categoria.id_categoria] = {
-    nombre: categoria.nombre_categoria,
-    ventas: 0,
-    cantidad: 0
-  };
-});
+  const ventasPorCategoria: Record<number, {nombre: string, ventas: number, cantidad: number}> = {};
+  categorias.forEach(categoria => {
+    ventasPorCategoria[categoria.id_categoria] = {
+      nombre: categoria.nombre_categoria,
+      ventas: 0,
+      cantidad: 0
+    };
+  });
 
-ordenDetalles.forEach(detalle => {
-  const orden = ordenes.find(o => o.id_orden === detalle.id_orden && o.estado === 'pagado');
-  if (!orden) return;
+  ordenDetalles.forEach(detalle => {
+    const orden = ordenes.find(o => o.id_orden === detalle.id_orden && o.estado === 'pagado');
+    if (!orden) return;
 
-  const producto = productos.find(p => p.id_producto === detalle.id_producto);
-  if (!producto || !ventasPorCategoria[producto.id_categoria]) {
-    console.warn(`Error con producto ${detalle.id_producto} o categoría no encontrada.`);
-    return;
-  }
+    const producto = productos.find(p => p.id_producto === detalle.id_producto);
+    if (!producto || !ventasPorCategoria[producto.id_categoria]) {
+      console.warn(`Error con producto ${detalle.id_producto} o categoría no encontrada.`);
+      return;
+    }
 
-  const cantidad = Number(detalle.cantidad);
-  const precio = Number(detalle.precio_unitario);
+    const cantidad = Number(detalle.cantidad);
+    const precio = Number(detalle.precio_unitario);
 
-  ventasPorCategoria[producto.id_categoria].ventas += cantidad * precio;
-  ventasPorCategoria[producto.id_categoria].cantidad += cantidad;
-});
+    ventasPorCategoria[producto.id_categoria].ventas += cantidad * precio;
+    ventasPorCategoria[producto.id_categoria].cantidad += cantidad;
+  });
 
-const ventasCategoria = Object.values(ventasPorCategoria).filter(cat => cat.ventas > 0);
-
+  const ventasCategoria = Object.values(ventasPorCategoria).filter(cat => cat.ventas > 0);
 
   // Resumen general
   const ordenesPagadas = ordenes.filter((orden) => orden.estado === "pagado");
@@ -486,7 +554,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
 
 
 
-  // Funciones para categorías
+  // Funciones para categorías - migradas a Supabase
   const handleAgregarCategoriaClick = () => {
     setEditCategoriaId(null);
     setShowCategoriaForm(true);
@@ -498,43 +566,168 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
   };
 
   const handleEliminarCategoriaClick = async (id_categoria: number) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar esta categoría?")) return;
-    try {
-      await axios.delete(`/api/categorias/${id_categoria}`);
-      fetchAllData();
-    } catch (error) {
-      console.error("Error al eliminar categoría", error);
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará la categoría permanentemente.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from('categorias')
+          .delete()
+          .eq('id_categoria', id_categoria);
+
+        if (error) throw error;
+
+        await Swal.fire('¡Eliminado!', 'La categoría ha sido eliminada con éxito.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar categoría:", error);
+        Swal.fire('Error', 'Hubo un problema al eliminar la categoría.', 'error');
+      }
     }
   };
 
   const handleGuardarCategoria = async () => {
     try {
       if (editCategoriaId === null) {
-        await axios.post("/api/categorias", { nombre_categoria: nombreCategoria });
+        // Crear nueva categoría
+        const { error } = await supabase
+          .from('categorias')
+          .insert([{ nombre_categoria: nombreCategoria }]);
+
+        if (error) throw error;
       } else {
-        await axios.put(`/api/categorias/${editCategoriaId}`, { nombre_categoria: nombreCategoria });
+        // Actualizar categoría existente
+        const { error } = await supabase
+          .from('categorias')
+          .update({ nombre_categoria: nombreCategoria })
+          .eq('id_categoria', editCategoriaId);
+
+        if (error) throw error;
       }
+
+      await Swal.fire('¡Éxito!', 'La categoría ha sido guardada correctamente.', 'success');
       fetchAllData();
       setShowCategoriaForm(false);
       setEditCategoriaId(null);
       setNombreCategoria("");
     } catch (error) {
-      console.error("Error al guardar la categoría", error);
+      console.error("❌ Error al guardar la categoría:", error);
+      Swal.fire('Error', 'No se pudo guardar la categoría.', 'error');
     }
   };
 
-  // Funciones para productos
+  // Funciones para productos - migradas a Supabase
   const handleAgregarProductoClick = () => {
     setEditProductoId(null);
     setShowProductoForm(true);
   };
-  const handleImagenChange = (file) => {
-  setImagenArchivo(file);
+
+  // Función para subir imagen a Supabase Storage
+  const uploadImageToSupabase = async (file: File): Promise<string> => {
+    try {
+      // Validar el archivo
+      if (!file) {
+        throw new Error('No se ha seleccionado ningún archivo');
+      }
+
+      // Validar tipo de archivo (solo imágenes)
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Tipo de archivo no permitido. Solo se permiten imágenes (JPEG, PNG, WebP, GIF)');
+      }
+
+      // Validar tamaño del archivo (máximo 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxSize) {
+        throw new Error('El archivo es demasiado grande. Tamaño máximo permitido: 5MB');
+      }
+
+      // Generar nombre único para el archivo
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 15);
+      const fileExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `productos/${timestamp}-${randomId}.${fileExtension}`;
+
+      console.log('📁 Iniciando subida de imagen a Supabase Storage:', fileName);
+
+      // Subir archivo a Supabase Storage
+      const { error } = await supabase.storage
+        .from('productos-images') // Nombre del bucket en Supabase Storage
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+        });
+
+      if (error) {
+        console.error('❌ Error al subir imagen:', error);
+        throw new Error(`Error al subir imagen: ${error.message}`);
+      }
+
+      // Obtener la URL pública del archivo
+      const { data: urlData } = supabase.storage
+        .from('productos-images')
+        .getPublicUrl(fileName);
+
+      if (!urlData?.publicUrl) {
+        throw new Error('No se pudo obtener la URL pública de la imagen');
+      }
+
+      console.log('✅ Imagen subida exitosamente:', urlData.publicUrl);
+      return urlData.publicUrl;
+
+    } catch (error) {
+      console.error('❌ Error en uploadImageToSupabase:', error);
+      throw error;
+    }
+  };
+
+  // Función para eliminar imagen de Supabase Storage
+  const deleteImageFromSupabase = async (imageUrl: string): Promise<void> => {
+    try {
+      if (!imageUrl || !imageUrl.includes('productos-images')) {
+        return; // No es una imagen de Supabase Storage
+      }
+
+      // Extraer el nombre del archivo de la URL
+      const urlParts = imageUrl.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const filePath = `productos/${fileName}`;
+
+      console.log('🗑️ Eliminando imagen de Supabase Storage:', filePath);
+
+      const { error } = await supabase.storage
+        .from('productos-images')
+        .remove([filePath]);
+
+      if (error) {
+        console.warn('⚠️ No se pudo eliminar la imagen anterior:', error);
+        // No lanzamos error aquí para no interrumpir el flujo principal
+      } else {
+        console.log('✅ Imagen anterior eliminada exitosamente');
+      }
+    } catch (error) {
+      console.warn('⚠️ Error al eliminar imagen anterior:', error);
+      // No lanzamos error aquí para no interrumpir el flujo principal
+    }
+  };
+
+  const handleImagenChange = (file: File | null) => {
+    setImagenArchivo(file);
   };
 
   const productosFiltrados = productos.filter((producto) =>
-  producto.nombre.toLowerCase().includes(busqueda.toLowerCase())
-);
+    producto.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  );
 
   const handleEditarProductoClick = (id_producto: number) => {
     setEditProductoId(id_producto);
@@ -542,85 +735,142 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
   };
 
   const handleEliminarProductoClick = async (id_producto: number) => {
-  const result = await Swal.fire({
-    title: '¿Estás seguro?',
-    text: 'Esta acción eliminará el producto permanentemente.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
-  });
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará el producto permanentemente.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
 
-  if (result.isConfirmed) {
-    try {
-      await axios.delete(`/api/productos/${id_producto}`);
-      await Swal.fire('¡Eliminado!', 'El producto ha sido eliminado con éxito.', 'success');
-      fetchAllData();
-    } catch (error) {
-      console.error("Error al eliminar producto", error);
-      Swal.fire('Error', 'Hubo un problema al eliminar el producto.', 'error');
+    if (result.isConfirmed) {
+      try {
+        // Primero obtener la información del producto para conocer la imagen
+        const { data: producto, error: fetchError } = await supabase
+          .from('productos')
+          .select('imagen_url')
+          .eq('id_producto', id_producto)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // Eliminar el producto de la base de datos
+        const { error } = await supabase
+          .from('productos')
+          .delete()
+          .eq('id_producto', id_producto);
+
+        if (error) throw error;
+
+        // Si el producto tenía una imagen, intentar eliminarla de Storage
+        if (producto?.imagen_url) {
+          try {
+            await deleteImageFromSupabase(producto.imagen_url);
+            console.log('🗑️ Imagen del producto eliminada de Storage');
+          } catch (error) {
+            console.warn('⚠️ No se pudo eliminar la imagen del Storage:', error);
+            // No es crítico, el producto ya fue eliminado
+          }
+        }
+
+        await Swal.fire('¡Eliminado!', 'El producto ha sido eliminado con éxito.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar producto:", error);
+        Swal.fire('Error', 'Hubo un problema al eliminar el producto.', 'error');
+      }
     }
-  }
-};
+  };
 
   const handleGuardarProducto = async () => {
-  try {
-    let imagenURL = productoForm.imagen_url;
+    try {
+      setSubiendoImagen(false); // Reset del estado
+      let imagenURL = productoForm.imagen_url;
+      let oldImageUrl = productoForm.imagen_url;
 
-    // Subir imagen si se seleccionó una nueva
-    if (imagenArchivo) {
-      const formData = new FormData();
-      formData.append("imagen", imagenArchivo);
+      // Si se seleccionó una nueva imagen, subirla a Supabase Storage
+      if (imagenArchivo) {
+        try {
+          setSubiendoImagen(true);
+          console.log('📁 Subiendo imagen a Supabase Storage...');
+          imagenURL = await uploadImageToSupabase(imagenArchivo);
+          console.log('✅ Imagen subida exitosamente:', imagenURL);
+        } catch (error) {
+          console.error('❌ Error al subir la imagen:', error);
+          await Swal.fire('Error', 'No se pudo subir la imagen. Intente nuevamente.', 'error');
+          return;
+        } finally {
+          setSubiendoImagen(false);
+        }
+      }
 
-      const uploadRes = await axios.post("/api/upload-imagen", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      // Construir el objeto para enviar
+      const productoData = {
+        nombre: productoForm.nombre,
+        descripcion: productoForm.descripcion,
+        precio: parseFloat(productoForm.precio),
+        stock: parseInt(productoForm.stock),
+        puntuacion: parseFloat(productoForm.puntuacion),
+        imagen_url: imagenURL,
+        id_categoria: parseInt(productoForm.id_categoria),
+        en_oferta: productoForm.en_oferta,
+        descuento: parseFloat(productoForm.descuento),
+      };
+
+      if (editProductoId === null) {
+        // Crear nuevo producto
+        const { error } = await supabase
+          .from('productos')
+          .insert([productoData]);
+
+        if (error) throw error;
+      } else {
+        // Actualizar producto existente
+        const { error } = await supabase
+          .from('productos')
+          .update(productoData)
+          .eq('id_producto', editProductoId);
+
+        if (error) throw error;
+
+        // Si se subió una nueva imagen y hay una imagen anterior, eliminar la anterior
+        if (imagenArchivo && oldImageUrl && oldImageUrl !== imagenURL) {
+          try {
+            await deleteImageFromSupabase(oldImageUrl);
+            console.log('🗑️ Imagen anterior eliminada de Storage');
+          } catch (error) {
+            console.warn('⚠️ No se pudo eliminar la imagen anterior:', error);
+            // No es crítico, continúa sin fallar
+          }
+        }
+      }
+
+      await Swal.fire('¡Éxito!', 'El producto ha sido guardado correctamente.', 'success');
+      fetchAllData();
+      setShowProductoForm(false);
+      setEditProductoId(null);
+      setImagenArchivo(null);
+      setProductoForm({
+        nombre: "",
+        descripcion: "",
+        precio: "",
+        stock: "",
+        puntuacion: "0",
+        imagen_url: "",
+        id_categoria: "",
+        en_oferta: false,
+        descuento: "0",
       });
-
-      imagenURL = uploadRes.data.rutaImagen; // e.g., "/images/imagen123.jpg"
+    } catch (error) {
+      console.error("❌ Error al guardar el producto:", error);
+      Swal.fire('Error', 'No se pudo guardar el producto.', 'error');
+    } finally {
+      setSubiendoImagen(false);
     }
-
-    // Construir el objeto para enviar
-    const productoData = {
-      nombre: productoForm.nombre,
-      descripcion: productoForm.descripcion,
-      precio: parseFloat(productoForm.precio),
-      stock: parseInt(productoForm.stock),
-      puntuacion: parseFloat(productoForm.puntuacion),
-      imagen_url: imagenURL,
-      id_categoria: parseInt(productoForm.id_categoria),
-      en_oferta: productoForm.en_oferta,
-      descuento: parseFloat(productoForm.descuento),
-    };
-
-    if (editProductoId === null) {
-      await axios.post("/api/productos", productoData);
-    } else {
-      await axios.put(`/api/productos/${editProductoId}`, productoData);
-    }
-
-    fetchAllData();
-    setShowProductoForm(false);
-    setEditProductoId(null);
-    setImagenArchivo(null);
-    setProductoForm({
-      nombre: "",
-      descripcion: "",
-      precio: "",
-      stock: "",
-      puntuacion: "0",
-      imagen_url: "",
-      id_categoria: "",
-      en_oferta: false,
-      descuento: "0",
-    });
-  } catch (error) {
-    console.error("Error al guardar el producto", error);
-  }
-};
+  };
 
 
   const handleProductoFormChange = (field: string, value: string | boolean) => {
@@ -630,53 +880,95 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
     }));
   };
 
-  // Funciones para usuarios
+  // Funciones para usuarios - migradas a Supabase
   const handleAgregarUsuarioClick = () => {
     setEditUsuarioId(null);
     setShowUsuarioForm(true);
   };
   
   const usuariosFiltrados = usuarios.filter((usuario) =>
-  usuario.nombre_completo.toLowerCase().includes(busquedaUsuario.toLowerCase()) ||
-  usuario.correo.toLowerCase().includes(busquedaUsuario.toLowerCase())
-);
+    usuario.nombre_completo.toLowerCase().includes(busquedaUsuario.toLowerCase())
+  );
 
-  const handleEditarUsuarioClick = (id_usuario: number) => {
+  const handleEditarUsuarioClick = (id_usuario: string) => {
     setEditUsuarioId(id_usuario);
     setShowUsuarioForm(true);
   };
 
-  const handleEliminarUsuarioClick = async (id_usuario: number) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar este usuario?")) return;
-    try {
-      await axios.delete(`/api/usuarios/${id_usuario}`);
-      fetchAllData();
-    } catch (error) {
-      console.error("Error al eliminar usuario", error);
+  const handleEliminarUsuarioClick = async (id_usuario: string) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará el usuario permanentemente.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        // Eliminar de la tabla usuarios (esto también eliminará de auth.users por CASCADE)
+        const { error } = await supabase
+          .from('usuarios')
+          .delete()
+          .eq('id_usuario', id_usuario);
+
+        if (error) throw error;
+
+        await Swal.fire('¡Eliminado!', 'El usuario ha sido eliminado con éxito.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar usuario:", error);
+        Swal.fire('Error', 'Hubo un problema al eliminar el usuario.', 'error');
+      }
     }
   };
 
   const handleGuardarUsuario = async () => {
     try {
-      const usuarioData = {
-        nombre_completo: usuarioForm.nombre_completo,
-        correo: usuarioForm.correo,
-        rol: usuarioForm.rol,
-        direccion: usuarioForm.direccion,
-        telefono: usuarioForm.telefono
-      };
-
       if (editUsuarioId === null) {
-        // Para crear nuevo usuario, incluimos la contraseña
-        await axios.post("/api/usuarios", {
-          ...usuarioData,
-          contrasena: usuarioForm.contrasena
+        // Para crear nuevo usuario, necesitamos usar Supabase Auth
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: usuarioForm.correo,
+          password: usuarioForm.contrasena,
         });
+
+        if (authError) throw authError;
+
+        if (authData.user) {
+          // Insertar datos adicionales en la tabla usuarios
+          const { error: insertError } = await supabase
+            .from('usuarios')
+            .insert([{
+              id_usuario: authData.user.id,
+              nombre_completo: usuarioForm.nombre_completo,
+              direccion: usuarioForm.direccion,
+              telefono: usuarioForm.telefono,
+              rol: usuarioForm.rol,
+              avatar_url: null,
+              foto_perfil: null
+            }]);
+
+          if (insertError) throw insertError;
+        }
       } else {
-        // Para actualizar, no enviamos contraseña (se maneja por separado)
-        await axios.put(`/api/usuarios/${editUsuarioId}`, usuarioData);
+        // Para actualizar usuario existente, solo actualizamos la tabla usuarios
+        const { error } = await supabase
+          .from('usuarios')
+          .update({
+            nombre_completo: usuarioForm.nombre_completo,
+            direccion: usuarioForm.direccion,
+            telefono: usuarioForm.telefono,
+            rol: usuarioForm.rol
+          })
+          .eq('id_usuario', editUsuarioId);
+
+        if (error) throw error;
       }
       
+      await Swal.fire('¡Éxito!', 'El usuario ha sido guardado correctamente.', 'success');
       fetchAllData();
       setShowUsuarioForm(false);
       setEditUsuarioId(null);
@@ -689,7 +981,8 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
         telefono: ""
       });
     } catch (error) {
-      console.error("Error al guardar el usuario", error);
+      console.error("❌ Error al guardar el usuario:", error);
+      Swal.fire('Error', 'No se pudo guardar el usuario.', 'error');
     }
   };
 
@@ -700,143 +993,174 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
     }));
   };
 
-  //funciones para resto de tabalas
+  // Funciones para resto de tablas - migradas a Supabase
+  
   // Función para cambiar el estado de una orden
-const cambiarEstadoOrden = async (id_orden: number, nuevoEstado: 'pendiente' | 'pagado' | 'cancelado') => {
-  try {
-    await axios.put(`/api/ordenes/${id_orden}/estado`, { estado: nuevoEstado });
-    fetchAllData();
-    Swal.fire('¡Éxito!', 'El estado de la orden ha sido actualizado.', 'success');
-  } catch (error) {
-    console.error("Error al cambiar estado de orden", error);
-    Swal.fire('Error', 'No se pudo actualizar el estado de la orden.', 'error');
-  }
+  const cambiarEstadoOrden = async (id_orden: number, nuevoEstado: 'pendiente' | 'pagado' | 'cancelado') => {
+    try {
+      const { error } = await supabase
+        .from('ordenes')
+        .update({ 
+          estado: nuevoEstado,
+          fecha_actualizacion: new Date().toISOString()
+        })
+        .eq('id_orden', id_orden);
 
-};
+      if (error) throw error;
 
+      await Swal.fire('¡Éxito!', 'El estado de la orden ha sido actualizado.', 'success');
+      fetchAllData();
+    } catch (error) {
+      console.error("❌ Error al cambiar estado de orden:", error);
+      Swal.fire('Error', 'No se pudo actualizar el estado de la orden.', 'error');
+    }
+  };
 
-const ordenesFiltradas = ordenes.filter((orden) => {
-  const usuario = usuarios.find(u => u.id_usuario === orden.id_usuario);
-  return usuario?.nombre_completo.toLowerCase().includes(busquedaOrdenUsuario.toLowerCase());
-});
-
-
-// Función para eliminar un contacto
-const handleEliminarContacto = async (id_contacto: number) => {
-  const result = await Swal.fire({
-    title: '¿Estás seguro?',
-    text: 'Esta acción eliminará el mensaje de contacto permanentemente.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
+  const ordenesFiltradas = ordenes.filter((orden) => {
+    const usuario = usuarios.find(u => u.id_usuario === orden.id_usuario);
+    return usuario?.nombre_completo.toLowerCase().includes(busquedaOrdenUsuario.toLowerCase());
   });
 
-  if (result.isConfirmed) {
-    try {
-      await axios.delete(`/api/contactos/${id_contacto}`);
-      fetchAllData();
-      Swal.fire('¡Eliminado!', 'El mensaje de contacto ha sido eliminado.', 'success');
-    } catch (error) {
-      console.error("Error al eliminar contacto", error);
-      Swal.fire('Error', 'No se pudo eliminar el mensaje de contacto.', 'error');
+  // Función para eliminar un contacto
+  const handleEliminarContacto = async (id_contacto: number) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará el mensaje de contacto permanentemente.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from('contactos')
+          .delete()
+          .eq('id_contacto', id_contacto);
+
+        if (error) throw error;
+
+        await Swal.fire('¡Eliminado!', 'El mensaje de contacto ha sido eliminado.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar contacto:", error);
+        Swal.fire('Error', 'No se pudo eliminar el mensaje de contacto.', 'error');
+      }
     }
-  }
-};
+  };
 
-const contactosFiltrados = contactos.filter(contacto =>
-  contacto.correo.toLowerCase().includes(busquedaCorreo.toLowerCase())
-);
+  const contactosFiltrados = contactos.filter(contacto =>
+    contacto.correo.toLowerCase().includes(busquedaCorreo.toLowerCase())
+  );
 
+  // Función para eliminar un carrito (y sus detalles)
+  const handleEliminarCarrito = async (id_carrito: number) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará el carrito y todos sus productos.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
 
-// Función para eliminar un carrito (y sus detalles)
-const handleEliminarCarrito = async (id_carrito: number) => {
-  const result = await Swal.fire({
-    title: '¿Estás seguro?',
-    text: 'Esta acción eliminará el carrito y todos sus productos.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
+    if (result.isConfirmed) {
+      try {
+        // Los detalles se eliminan automáticamente por CASCADE
+        const { error } = await supabase
+          .from('carrito')
+          .delete()
+          .eq('id_carrito', id_carrito);
+
+        if (error) throw error;
+
+        await Swal.fire('¡Eliminado!', 'El carrito ha sido eliminado.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar carrito:", error);
+        Swal.fire('Error', 'No se pudo eliminar el carrito.', 'error');
+      }
+    }
+  };
+
+  const carritosFiltrados = carritos.filter((carrito) => {
+    const usuario = usuarios.find(u => u.id_usuario === carrito.id_usuario);
+    return usuario?.nombre_completo.toLowerCase().includes(busquedaCarritoUsuario.toLowerCase());
   });
 
-  if (result.isConfirmed) {
-    try {
-      await axios.delete(`/api/carritos/${id_carrito}`);
-      fetchAllData();
-      Swal.fire('¡Eliminado!', 'El carrito ha sido eliminado.', 'success');
-    } catch (error) {
-      console.error("Error al eliminar carrito", error);
-      Swal.fire('Error', 'No se pudo eliminar el carrito.', 'error');
+  // Función para eliminar una orden (y sus detalles)
+  const handleEliminarOrden = async (id_orden: number) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará la orden y todos sus detalles.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (result.isConfirmed) {
+      try {
+        // Los detalles se eliminan automáticamente por CASCADE
+        const { error } = await supabase
+          .from('ordenes')
+          .delete()
+          .eq('id_orden', id_orden);
+
+        if (error) throw error;
+
+        await Swal.fire('¡Eliminado!', 'La orden ha sido eliminada.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar orden:", error);
+        Swal.fire('Error', 'No se pudo eliminar la orden.', 'error');
+      }
     }
-  }
-};
+  };
 
-const carritosFiltrados = carritos.filter((carrito) => {
-  const usuario = usuarios.find(u => u.id_usuario === carrito.id_usuario);
-  return usuario?.nombre_completo.toLowerCase().includes(busquedaCarritoUsuario.toLowerCase());
-});
+  // Función para eliminar un pago
+  const handleEliminarPago = async (id_pago: number) => {
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Esta acción eliminará el registro de pago.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
 
+    if (result.isConfirmed) {
+      try {
+        const { error } = await supabase
+          .from('pagos')
+          .delete()
+          .eq('id_pago', id_pago);
 
-// Función para eliminar una orden (y sus detalles)
-const handleEliminarOrden = async (id_orden: number) => {
-  const result = await Swal.fire({
-    title: '¿Estás seguro?',
-    text: 'Esta acción eliminará la orden y todos sus detalles.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
+        if (error) throw error;
+
+        await Swal.fire('¡Eliminado!', 'El pago ha sido eliminado.', 'success');
+        fetchAllData();
+      } catch (error) {
+        console.error("❌ Error al eliminar pago:", error);
+        Swal.fire('Error', 'No se pudo eliminar el pago.', 'error');
+      }
+    }
+  };
+
+  const pagosFiltrados = pagos.filter((pago) => {
+    const orden = ordenes.find(o => o.id_orden === pago.id_orden);
+    const usuario = orden ? usuarios.find(u => u.id_usuario === orden.id_usuario) : null;
+    return usuario?.nombre_completo.toLowerCase().includes(busquedaPagoUsuario.toLowerCase());
   });
-
-  if (result.isConfirmed) {
-    try {
-      await axios.delete(`/api/ordenes/${id_orden}`);
-      fetchAllData();
-      Swal.fire('¡Eliminado!', 'La orden ha sido eliminada.', 'success');
-    } catch (error) {
-      console.error("Error al eliminar orden", error);
-      Swal.fire('Error', 'No se pudo eliminar la orden.', 'error');
-    }
-  }
-};
-
-// Función para eliminar un pago
-const handleEliminarPago = async (id_pago: number) => {
-  const result = await Swal.fire({
-    title: '¿Estás seguro?',
-    text: 'Esta acción eliminará el registro de pago.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#d33',
-    cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Sí, eliminar',
-    cancelButtonText: 'Cancelar',
-  });
-
-  if (result.isConfirmed) {
-    try {
-      await axios.delete(`/api/pagos/${id_pago}`);
-      fetchAllData();
-      Swal.fire('¡Eliminado!', 'El pago ha sido eliminado.', 'success');
-    } catch (error) {
-      console.error("Error al eliminar pago", error);
-      Swal.fire('Error', 'No se pudo eliminar el pago.', 'error');
-    }
-  }
-};
-
-const pagosFiltrados = pagos.filter((pago) => {
-  const orden = ordenes.find(o => o.id_orden === pago.id_orden);
-  const usuario = orden ? usuarios.find(u => u.id_usuario === orden.id_usuario) : null;
-  return usuario?.nombre_completo.toLowerCase().includes(busquedaPagoUsuario.toLowerCase());
-});
 
 
 
@@ -1011,7 +1335,7 @@ const renderEstadisticas = () => (
                 fill="#8884d8"
                 dataKey="ventas"
               >
-                {estadisticas.ventasPorCategoria.map((entry, index) => (
+                {estadisticas.ventasPorCategoria.map((_, index) => (
                   <Cell
                     key={`cell-${index}`}
                     fill={COLORS[index % COLORS.length]}
@@ -1158,7 +1482,7 @@ const renderContactos = () => (
 
           <CardFooter className="flex justify-end p-4">
             <Button
-              variant="destructive"
+              variant="solid"
               className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm shadow"
               onClick={() => handleEliminarContacto(contacto.id_contacto)}
             >
@@ -1247,7 +1571,7 @@ const renderCarritos = () => (
 
             <CardFooter className="flex justify-end p-4">
               <Button
-                variant="destructive"
+                variant="solid"
                 className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm shadow"
                 onClick={() => handleEliminarCarrito(carrito.id_carrito)}
               >
@@ -1336,7 +1660,7 @@ const renderOrdenes = () => (
               )}
 
               <div className="border-t pt-4 mt-4 flex justify-between items-center">
-                <div className="font-bold text-slate-800">Total: ${(parseFloat(orden.total) || 0).toFixed(2)}</div>
+                <div className="font-bold text-slate-800">Total: ${(parseFloat(String(orden.total)) || 0).toFixed(2)}</div>
 
                 {pago && (
                   <div className="text-sm text-slate-600 text-right">
@@ -1357,19 +1681,19 @@ const renderOrdenes = () => (
             <CardFooter className="flex justify-between p-4">
               <div className="flex gap-2">
                 <Button
-                  variant={orden.estado === 'pendiente' ? 'default' : 'outline'}
+                  variant="flat"
                   onClick={() => cambiarEstadoOrden(orden.id_orden, 'pendiente')}
                 >
                   Pendiente
                 </Button>
                 <Button
-                  variant={orden.estado === 'pagado' ? 'default' : 'outline'}
+                  variant="flat"
                   onClick={() => cambiarEstadoOrden(orden.id_orden, 'pagado')}
                 >
                   Pagado
                 </Button>
                 <Button
-                  variant={orden.estado === 'cancelado' ? 'default' : 'outline'}
+                  variant="flat"
                   onClick={() => cambiarEstadoOrden(orden.id_orden, 'cancelado')}
                 >
                   Cancelado
@@ -1377,7 +1701,7 @@ const renderOrdenes = () => (
               </div>
 
               <Button
-                variant="destructive"
+                variant="solid"
                 className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm shadow"
                 onClick={() => handleEliminarOrden(orden.id_orden)}
               >
@@ -1474,7 +1798,7 @@ const renderPagos = () => (
             </CardBody>
             <CardFooter className="flex justify-end p-4">
               <Button
-                variant="destructive"
+                variant="solid"
                 className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm shadow"
                 onClick={() => handleEliminarPago(pago.id_pago)}
               >
@@ -1532,59 +1856,100 @@ const renderUsuarios = () => (
       >
         <h3 className="text-2xl font-bold mb-6 text-indigo-800 flex items-center gap-2">
           <Icon icon={editUsuarioId ? "mdi:pencil" : "mdi:account-plus"} className="text-indigo-600" />
-          {editUsuarioId ? "Editar Usuario" : "Agregar Nuevo Usuario"}
+          {editUsuarioId ? 'Editar Usuario' : 'Agregar Usuario'}
         </h3>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Campos del formulario */}
-          {[
-            ["Nombre Completo", "nombre_completo", "text"],
-            ["Correo Electrónico", "correo", "email"],
-            ...(editUsuarioId === null ? [["Contraseña", "contrasena", "password"]] : []),
-            ["Teléfono", "telefono", "tel"],
-            ["Dirección", "direccion", "text"],
-          ].map(([label, key, type]) => (
-            <div className="space-y-1" key={key}>
-              <label className="text-sm font-medium text-slate-700">{label}</label>
+          {/* Nombre completo */}
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1">Nombre completo</label>
+            <input
+              type="text"
+              value={usuarioForm.nombre_completo}
+              onChange={e => handleUsuarioFormChange('nombre_completo', e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+              required
+            />
+          </div>
+          {/* Correo (solo al crear) */}
+          {!editUsuarioId && (
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Correo electrónico</label>
               <input
-                type={type}
-                value={usuarioForm[key]}
-                onChange={(e) => handleUsuarioFormChange(key, e.target.value)}
-                placeholder={label}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/70 backdrop-blur-md focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition"
+                type="email"
+                value={usuarioForm.correo}
+                onChange={e => handleUsuarioFormChange('correo', e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                required
               />
             </div>
-          ))}
-
+          )}
+          {/* Contraseña (solo al crear) */}
+          {!editUsuarioId && (
+            <div>
+              <label className="block text-slate-700 font-semibold mb-1">Contraseña</label>
+              <input
+                type="password"
+                value={usuarioForm.contrasena}
+                onChange={e => handleUsuarioFormChange('contrasena', e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                required
+              />
+            </div>
+          )}
           {/* Rol */}
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Rol</label>
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1">Rol</label>
             <select
               value={usuarioForm.rol}
-              onChange={(e) => handleUsuarioFormChange("rol", e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white/70 backdrop-blur-md focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition"
+              onChange={e => handleUsuarioFormChange('rol', e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
             >
               <option value="cliente">Cliente</option>
               <option value="admin">Administrador</option>
             </select>
           </div>
+          {/* Dirección */}
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1">Dirección</label>
+            <input
+              type="text"
+              value={usuarioForm.direccion}
+              onChange={e => handleUsuarioFormChange('direccion', e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+            />
+          </div>
+          {/* Teléfono */}
+          <div>
+            <label className="block text-slate-700 font-semibold mb-1">Teléfono</label>
+            <input
+              type="text"
+              value={usuarioForm.telefono}
+              onChange={e => handleUsuarioFormChange('telefono', e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+            />
+          </div>
         </div>
-
-        {/* Botones */}
         <div className="flex gap-4 mt-8">
           <Button
             onClick={handleGuardarUsuario}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl shadow-md"
           >
-            <Icon icon="mdi:content-save" className="w-5 h-5 mr-2" />
-            Guardar
+            {editUsuarioId ? 'Guardar Cambios' : 'Crear Usuario'}
           </Button>
           <Button
             onClick={() => {
               setShowUsuarioForm(false);
               setEditUsuarioId(null);
+              setUsuarioForm({
+                nombre_completo: "",
+                correo: "",
+                contrasena: "",
+                rol: "cliente",
+                direccion: "",
+                telefono: ""
+              });
             }}
-            className="border border-slate-300 hover:bg-slate-100 text-slate-700 font-medium px-6 py-2.5 rounded-xl transition-all"
+            className="bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold px-6 py-3 rounded-xl shadow-md"
           >
             Cancelar
           </Button>
@@ -1609,7 +1974,7 @@ const renderUsuarios = () => (
             </div>
             <div>
               <h3 className="font-bold text-lg text-slate-800">{usuario.nombre_completo}</h3>
-              <p className="text-slate-600 text-sm">{usuario.correo}</p>
+              <p className="text-slate-600 text-sm">{usuario.telefono || "No especificado"}</p>
               <span className={`mt-1 inline-block px-3 py-1 rounded-full text-xs font-semibold ${usuario.rol === "admin" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
                 {usuario.rol === "admin" ? "Administrador" : "Cliente"}
               </span>
@@ -1629,7 +1994,7 @@ const renderUsuarios = () => (
 
           <div className="mt-5 flex justify-end gap-3 border-t border-slate-100 pt-4">
             <Button
-              variant="outline"
+              variant="bordered"
               onClick={() => handleEditarUsuarioClick(usuario.id_usuario)}
               className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-4 py-2 rounded-lg transition-all"
             >
@@ -1637,7 +2002,7 @@ const renderUsuarios = () => (
               Editar
             </Button>
             <Button
-              variant="destructive"
+              variant="solid"
               onClick={() => handleEliminarUsuarioClick(usuario.id_usuario)}
               className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-all"
             >
@@ -1650,7 +2015,7 @@ const renderUsuarios = () => (
     </div>
 
     {/* Animación global */}
-    <style jsx global>{`
+    <style>{`
       @keyframes fadeIn {
         from { opacity: 0; }
         to { opacity: 1; }
@@ -1669,7 +2034,7 @@ const renderUsuarios = () => (
       <h2 className="text-2xl font-bold text-slate-800">Gestión de Categorías</h2>
       <Button
         onClick={handleAgregarCategoriaClick}
-        variant="default"
+        variant="solid"
         size="sm"
         className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-medium px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
       >
@@ -1703,7 +2068,7 @@ const renderUsuarios = () => (
                 setShowCategoriaForm(false);
                 setEditCategoriaId(null);
               }}
-              variant="outline"
+              variant="bordered"
               className="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition"
             >
               Cancelar
@@ -1760,8 +2125,8 @@ const renderUsuarios = () => (
 
                 <div className="flex gap-2 mt-5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <Button
-                    size="icon"
-                    variant="outline"
+                    size="sm"
+                    variant="bordered"
                     onClick={() => handleEditarCategoriaClick(categoria.id_categoria)}
                     className="w-10 h-10 p-2 flex items-center justify-center hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all rounded-xl"
                     title="Editar categoría"
@@ -1769,8 +2134,8 @@ const renderUsuarios = () => (
                     <Icon icon="mdi:pencil" className="text-lg" />
                   </Button>
                   <Button
-                    size="icon"
-                    variant="outline"
+                    size="sm"
+                    variant="bordered"
                     onClick={() => handleEliminarCategoriaClick(categoria.id_categoria)}
                     className="w-10 h-10 p-2 flex items-center justify-center hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all rounded-xl"
                     title="Eliminar categoría"
@@ -1810,7 +2175,7 @@ const renderUsuarios = () => (
     <div className="mb-6">
       <Button
         onClick={handleAgregarProductoClick}
-        variant="default"
+        variant="solid"
         size="sm"
         className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300"
       >
@@ -1849,12 +2214,12 @@ const renderUsuarios = () => (
                 
                 {field.type === 'select' ? (
                   <select
-                    value={productoForm[field.id]}
+                    value={(productoForm as any)[field.id] || ''}
                     onChange={(e) => handleProductoFormChange(field.id, e.target.value)}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   >
                     <option value="">Seleccionar categoría</option>
-                    {field.options.map((categoria) => (
+                    {field.options?.map((categoria) => (
                       <option key={categoria.id_categoria} value={categoria.id_categoria}>
                         {categoria.nombre_categoria}
                       </option>
@@ -1863,7 +2228,7 @@ const renderUsuarios = () => (
                 ) : (
                   <input
                     type={field.type}
-                    value={productoForm[field.id]}
+                    value={(productoForm as any)[field.id] || ''}
                     onChange={(e) => handleProductoFormChange(field.id, e.target.value)}
                     placeholder={field.placeholder}
                     className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
@@ -1898,26 +2263,26 @@ const renderUsuarios = () => (
                   <div className="flex flex-col items-center justify-center pt-5 pb-6">
                     <Icon icon="mdi:cloud-upload" className="text-3xl text-gray-400 mb-2" />
                     <p className="text-sm text-gray-500">
-                      {productoForm.imagen ? 'Cambiar imagen' : 'Subir imagen'}
+                      {imagenArchivo ? 'Cambiar imagen' : 'Subir imagen'}
                     </p>
                   </div>
                   <input 
                     type="file" 
                     accept="image/*" 
-                    onChange={(e) => handleImagenChange(e.target.files[0])}
+                    onChange={(e) => handleImagenChange(e.target.files?.[0] || null)}
                     className="hidden" 
                   />
                 </label>
-                {productoForm.imagen && (
+                {imagenArchivo && (
                   <div className="relative">
                     <img 
-                      src={URL.createObjectURL(productoForm.imagen)} 
+                      src={URL.createObjectURL(imagenArchivo)} 
                       alt="Preview" 
                       className="w-24 h-24 object-contain rounded-lg border"
                     />
                     <button 
                       type="button"
-                      onClick={() => handleProductoFormChange("imagen", null)}
+                      onClick={() => setImagenArchivo(null)}
                       className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                     >
                       <Icon icon="mdi:close" className="text-sm" />
@@ -1965,9 +2330,18 @@ const renderUsuarios = () => (
           <div className="flex gap-3 mt-6">
             <Button 
               onClick={handleGuardarProducto} 
-              className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl shadow hover:shadow-md transition-all flex items-center gap-2"
+              disabled={subiendoImagen}
+              className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl shadow hover:shadow-md transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Icon icon="mdi:content-save" /> Guardar
+              {subiendoImagen ? (
+                <>
+                  <Icon icon="mdi:loading" className="animate-spin" /> Subiendo imagen...
+                </>
+              ) : (
+                <>
+                  <Icon icon="mdi:content-save" /> Guardar
+                </>
+              )}
             </Button>
             <Button
               onClick={() => {
@@ -2080,8 +2454,8 @@ const renderUsuarios = () => (
             <CardFooter className="flex gap-3 p-0 pt-3 border-t border-gray-100 mt-auto">
               <Button
                 size="sm"
-                variant="outline"
-                className="flex-1 border-gray-300 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                variant="bordered"
+                className="flex-1 border-gray-300 rounded-lg hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors"
                 onClick={() => handleEditarProductoClick(producto.id_producto)}
               >
                 <Icon icon="mdi:pencil" className="text-blue-600 mr-1" /> Editar

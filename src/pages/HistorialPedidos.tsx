@@ -1,6 +1,7 @@
 // src/pages/HistorialPedidos.tsx
 import { useState, useEffect } from "react";
 import { Button } from "@heroui/react";
+import { supabase } from "../lib/supabaseClient"; // Asegúrate de importar tu cliente de Supabase
 
 export const HistorialPedidos = () => {
   const [pedidos, setPedidos] = useState<any[]>([]);
@@ -10,25 +11,14 @@ export const HistorialPedidos = () => {
   useEffect(() => {
     const cargarPedidos = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/ordenes/historial');
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Error ${response.status}: ${errorText}`);
-        }
-
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error('Respuesta no es JSON');
-        }
-
-        const data = await response.json();
-        
-        if (Array.isArray(data)) {
-          setPedidos(data);
-        } else {
-          throw new Error('La respuesta no es un array');
-        }
+        // Obtener historial de pedidos desde Supabase
+        const { data, error } = await supabase
+          .from('ordenes')
+          .select('*')
+          .order('fecha_creacion', { ascending: false });
+        if (error) throw error;
+        setPedidos(data || []);
+        setError(null);
       } catch (error) {
         console.error("Error cargando pedidos:", error);
         setError("Error al cargar los pedidos. Intente nuevamente.");
@@ -51,7 +41,7 @@ export const HistorialPedidos = () => {
         <div className="bg-red-50 text-red-700 p-4 rounded-lg">
           <p>{error}</p>
           <Button 
-            variant="primary" 
+            variant="solid" 
             onClick={() => window.location.reload()}
             className="mt-2"
           >

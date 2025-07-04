@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Image, Badge } from '@heroui/react';
 import { Icon } from '@iconify/react';
+import { supabase } from "../lib/supabaseClient";
 
 interface Product {
   id_producto: number;
@@ -45,17 +46,16 @@ const OfferModal: React.FC<OfferModalProps> = ({ isOpen, onClose, addToCart, onV
   try {
     setLoading(true);
     setError(false);
-    
-    const response = await fetch('http://localhost:3001/api/productos/mejor-oferta');
-    
-    if (!response.ok) {
-      throw new Error("Error en la respuesta del servidor");
-    }
-    
-    // La API devuelve un objeto único o null
-    const product: Product | null = await response.json();
-    
-    setBestOfferProduct(product);
+    // Buscar el producto con mayor descuento y en_oferta=true
+    const { data, error: supabaseError } = await supabase
+      .from('productos')
+      .select('*')
+      .eq('en_oferta', true)
+      .order('descuento', { ascending: false })
+      .limit(1)
+      .single();
+    if (supabaseError) throw supabaseError;
+    setBestOfferProduct(data || null);
   } catch (err) {
     console.error("Error al obtener ofertas:", err);
     setError(true);
@@ -266,7 +266,7 @@ const formatPrice = (value: number) => {
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300"></div>
                   <div className="relative bg-white p-4 rounded-2xl shadow-xl transform group-hover:scale-105 transition-transform duration-300">
                     <Image
-                      src={`http://localhost:3001${product.imagen_url}`}
+                      src={product.imagen_url}
                       alt={product.nombre}
                       className="w-full h-64 object-cover rounded-xl"
                     />
