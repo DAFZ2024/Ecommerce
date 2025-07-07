@@ -1,4 +1,5 @@
 import React from "react";
+import { memo } from 'react';
 import {
   Navbar,
   NavbarBrand,
@@ -42,6 +43,9 @@ import { OffersPage } from "./pages/OffersPage";
 import { ProductDetailPage } from "./pages/ProductDetailPage";
 import  Gracias  from "./pages/Gracias";
 import CrudDashboard from './pages/CrudDashboard';
+import OffersCarousel from "./components/OffersCarousel";
+import ChatbotWidget from "./components/ChatbotWidget";
+import { OrderTracker } from "./components/TravelAutopart";
 
 
 export interface Product {
@@ -75,9 +79,46 @@ interface User {
 }
 
 function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
+  const [offers, setOffers] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchOffers = async () => {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('productos')
+        .select('*')
+        .eq('en_oferta', true)
+        .gt('descuento', 0)
+        .order('descuento', { ascending: false })
+        .limit(10);
+      if (!error && data) {
+        setOffers(
+          data.map((item: any) => ({
+            id: item.id_producto,
+            image: item.imagen_url || '/placeholder-product.jpg',
+            title: `${item.nombre} ${item.descuento}% OFF`,
+            discount: item.descuento,
+            description: item.descripcion
+          }))
+        );
+      }
+      setLoading(false);
+    };
+    fetchOffers();
+  }, []);
+
   return (
     <>
       <Hero />
+      {/* Carrusel de Ofertas con datos reales */}
+      <div className="my-8">
+        {loading ? (
+          <div className="text-center py-10 text-gray-500">Cargando ofertas...</div>
+        ) : (
+          <OffersCarousel offers={offers} />
+        )}
+      </div>
       <Categories addToCart={addToCart} />
       <CallToAction />
       <SpecialOffers addToCart={addToCart} />
@@ -90,44 +131,17 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
   );
 }
 
-// ✅ Función mejorada para decodificar el JWT (legacy, ya no se usa con Supabase)
-const getUserFromToken = (token: string): User | null => {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    
-    return {
-      id: payload.userId || payload.id_usuario || payload.id,
-      email: payload.email || payload.correo,
-      nombre_completo: payload.nombre || payload.nombre_completo,
-      rol: payload.rol,
-      avatar_url: payload.avatar_url || null
-    };
-  } catch (error) {
-    console.error('❌ Error decodificando token:', error);
-    return null;
-  }
-};
 
-// ✅ Función para verificar si el token es válido
-const isTokenValid = (token: string): boolean => {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const now = Date.now() / 1000;
-    
-    // Verificar si el token ha expirado
-    if (payload.exp && payload.exp < now) {
-      console.warn('⚠️ Token expirado');
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Token inválido:', error);
-    return false;
-  }
-};
+
 
 function AppWrapper() {
+  React.useEffect(() => {
+    console.log('[AppWrapper] Montado');
+    return () => {
+      console.log('[AppWrapper] Desmontado');
+    };
+  }, []);
+
   const [isCartOpen, setIsCartOpen] = React.useState(false);
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -136,22 +150,30 @@ function AppWrapper() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [showOfferModal, setShowOfferModal] = React.useState(false);
   const [bestOfferProduct, setBestOfferProduct] = React.useState<Product | null>(null);
+  const [navbarTransparent, setNavbarTransparent] = React.useState(false);
+  const [chatResetFlag, setChatResetFlag] = React.useState(false);
   const location = useLocation();
 
-  // Componente de ruta protegida para admin (movido aquí para acceder al estado del usuario)
-  const AdminRoute = ({ children }: { children: React.ReactNode }) => {
-    console.log('🔍 AdminRoute - Estado del usuario:', { isLoggedIn, user, rol: user?.rol });
-    
-    if (!isLoggedIn || !user || user.rol !== 'admin') {
-      console.log('❌ AdminRoute - Acceso denegado. Redirigiendo al inicio.');
-      return <Navigate to="/" replace />;
-    }
-    
-    console.log('✅ AdminRoute - Acceso permitido para admin:', user.nombre_completo);
-    return <>{children}</>;
-  };
 
-   // 3. Función para obtener el producto con mayor oferta
+  // Componente de ruta protegida para admin (fuera de AppWrapper para evitar remounts)
+ const AdminRoute = memo(({ children, isLoggedIn, user }: { children: React.ReactNode, isLoggedIn: boolean, user: User | null }) => {
+  console.log('🔍 AdminRoute - Estado del usuario:', { isLoggedIn, user, rol: user?.rol });
+  if (!isLoggedIn || !user || user.rol !== 'admin') {
+    console.log('❌ AdminRoute - Acceso denegado. Redirigiendo al inicio.');
+    return <Navigate to="/" replace />;
+  }
+  console.log('✅ AdminRoute - Acceso permitido para admin:', user.nombre_completo, 'Renderizando children:', (children as any)?.type?.name || typeof children);
+  return <>{children}</>;
+}, (prevProps, nextProps) => {
+  // Solo re-renderizar si cambian las props importantes
+  return (
+    prevProps.isLoggedIn === nextProps.isLoggedIn &&
+    prevProps.user?.id_usuario === nextProps.user?.id_usuario &&
+    prevProps.user?.rol === nextProps.user?.rol
+  );
+});
+
+  // 3. Función para obtener el producto con mayor oferta
   const fetchBestOffer = async () => {
     try {
       const { data, error } = await supabase
@@ -457,18 +479,23 @@ function AppWrapper() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut(); // Cierra sesión en Supabase
     localStorage.removeItem("token");
     setIsLoggedIn(false);
     setUser(null);
     setCartItems([]); // Limpiar carrito al cerrar sesión
+    setChatResetFlag(flag => !flag); // Cambia el flag para resetear el chat
     toast("Sesión cerrada", { icon: "👋" });
     navigate("/");
   };
 
   return (
     <>
-        <Navbar maxWidth="xl" className="shadow-sm relative z-40">
+        <Navbar
+          maxWidth="xl"
+          className={`fixed top-0 left-0 w-full z-50 shadow-sm transition-all duration-300 ${navbarTransparent ? 'bg-white/70 backdrop-blur-md' : 'bg-white'} border-b border-gray-100`}
+        >
           <NavbarBrand>
             <Icon icon="lucide:car" className="text-primary text-2xl" />
             <p className="font-bold text-inherit ml-2">AutoPartesBogota</p>
@@ -651,7 +678,7 @@ function AppWrapper() {
             </NavbarItem>
           </NavbarContent>
         </Navbar>
-
+        <div className="h-[72px] sm:h-[80px]" /> {/* Espacio para el navbar fijo */}
       <main className="flex-grow">
         <Routes>
           <Route path="/" element={<MainHome addToCart={addToCart} />} />
@@ -667,7 +694,7 @@ function AppWrapper() {
           <Route
             path="/CrudDashboard"
             element={
-              <AdminRoute>
+              <AdminRoute isLoggedIn={isLoggedIn} user={user}>
                 <CrudDashboard />
               </AdminRoute>
             }
@@ -711,6 +738,8 @@ function AppWrapper() {
         addToCart={addToCart}
         onViewProduct={handleViewProduct}
       />
+
+      <ChatbotWidget user={user} clearOnLogout={chatResetFlag} /> 
 
       <Footer />
       <Toaster position="top-center" />

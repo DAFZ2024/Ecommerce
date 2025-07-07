@@ -3,6 +3,7 @@ import { Card, CardHeader, CardBody, Button, Spinner, Chip, Input } from '@herou
 import { Icon } from '@iconify/react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
+import { OrderTracker } from '../components/TravelAutopart';
 
 interface Order {
   id_orden: number;
@@ -19,6 +20,7 @@ interface Order {
 interface OrderDetail {
   id_detalle: number;
   nombre_producto: string;
+  imagen_url?: string;
   cantidad: number; 
   precio_unitario: number;
   subtotal: number;
@@ -62,6 +64,7 @@ const ClientDashboard = () => {
     direccion: '',
     telefono: ''
   });
+  const [showOrderTracker, setShowOrderTracker] = useState(false);
 
   // Verificar autenticación con Supabase
   useEffect(() => {
@@ -416,10 +419,10 @@ const ClientDashboard = () => {
   const fetchOrderDetails = async (orderId: number) => {
     try {
       setLoadingDetails(true);
-      // Obtener detalles de la orden desde Supabase con join a productos
+      // Obtener detalles de la orden desde Supabase con join a productos (nombre, imagen)
       const { data: orderDetails, error } = await supabase
         .from('orden_detalle')
-        .select('id_detalle, cantidad, precio_unitario, id_producto, productos(nombre)')
+        .select('id_detalle, cantidad, precio_unitario, id_producto, productos(nombre, imagen_url)')
         .eq('id_orden', orderId);
 
       if (error) {
@@ -433,6 +436,7 @@ const ClientDashboard = () => {
         const details = orderDetails.map((detalle: any) => ({
           id_detalle: detalle.id_detalle,
           nombre_producto: detalle.productos?.nombre || 'Producto desconocido',
+          imagen_url: detalle.productos?.imagen_url || '',
           cantidad: detalle.cantidad,
           precio_unitario: detalle.precio_unitario,
           subtotal: detalle.cantidad * detalle.precio_unitario
@@ -453,6 +457,7 @@ const ClientDashboard = () => {
     switch (status.toLowerCase()) {
       case 'completado':
       case 'entregado':
+      case 'aprobado':
         return 'success';
       case 'pendiente':
         return 'warning';
@@ -927,7 +932,13 @@ const ClientDashboard = () => {
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Método de pago:</p>
-                        <p className="font-medium">{order.metodo_pago}</p>
+                        <p className="font-medium">
+                          {/* Buscar el pago relacionado con la orden */}
+                          {(() => {
+                            const pago = payments.find(p => p.id_orden === order.id_orden);
+                            return pago ? pago.metodo_pago : 'No especificado';
+                          })()}
+                        </p>
                       </div>
                     </div>
                     
@@ -940,14 +951,39 @@ const ClientDashboard = () => {
                     >
                       Ver Detalles
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="bordered"
+                      onPress={() => setShowOrderTracker(true)}
+                      startContent={<Icon icon="lucide:map" />}
+                    >
+                      Seguimiento
+                    </Button>
+
+                    {showOrderTracker && (
+                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 relative">
+                          <button
+                            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+                            onClick={() => setShowOrderTracker(false)}
+                          >
+                            <Icon icon="lucide:x" className="w-6 h-6" />
+                          </button>
+                          <OrderTracker user={user} payments={payments} />
+                        </div>
+                      </div>
+                    )}
 
                     {selectedOrder?.id_orden === order.id_orden && selectedOrder.detalles && (
                       <div className="mt-4 pt-4 border-t">
                         <h4 className="font-semibold mb-3">Productos:</h4>
                         <div className="space-y-2">
                           {selectedOrder.detalles.map((detail) => (
-                            <div key={detail.id_detalle} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                              <div>
+                            <div key={detail.id_detalle} className="flex items-center bg-gray-50 p-3 rounded-lg gap-4">
+                              {detail.imagen_url && (
+                                <img src={detail.imagen_url} alt={detail.nombre_producto} className="w-12 h-12 object-cover rounded" />
+                              )}
+                              <div className="flex-1">
                                 <p className="font-medium">{detail.nombre_producto}</p>
                                 <p className="text-sm text-gray-600">
                                   Cantidad: {detail.cantidad} × {formatCurrency(detail.precio_unitario)}

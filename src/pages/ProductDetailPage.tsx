@@ -33,7 +33,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({ addToCart 
         const { data, error } = await supabase
           .from("productos")
           .select(`*, categorias(id_categoria, nombre_categoria)`)
-          .eq("id_producto", id)
+          .eq("id_producto", Number(id))
           .single();
         if (error) throw error;
         if (!data) {
