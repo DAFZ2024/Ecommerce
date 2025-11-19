@@ -99,7 +99,8 @@ function MainHome({ addToCart }: { addToCart: (product: Product) => void }) {
             image: item.imagen_url || '/placeholder-product.jpg',
             title: `${item.nombre} ${item.descuento}% OFF`,
             discount: item.descuento,
-            description: item.descripcion
+            description: item.descripcion,
+            precio: Number(item.precio)
           }))
         );
       }

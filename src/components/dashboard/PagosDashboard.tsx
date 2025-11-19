@@ -99,10 +99,10 @@ const PagosDashboard: React.FC<PagosDashboardProps> = ({
                       Orden #{pago.id_orden} - Usuario #{pago.id_usuario} - {usuario?.nombre_completo || 'Usuario desconocido'}
                     </div>
                     <div className="text-sm text-slate-600">
-                      Fecha: {new Date(pago.fecha_pago).toLocaleString()}
+                      Fecha: {pago.fecha_pago ? new Date(pago.fecha_pago).toLocaleString() : 'N/A'}
                     </div>
                     <div className="text-sm text-slate-600">
-                      Fecha Actualización: {new Date(pago.fecha_actualizacion).toLocaleString()}
+                      Fecha Actualización: {pago.fecha_actualizacion ? new Date(pago.fecha_actualizacion).toLocaleString() : 'N/A'}
                     </div>
                     <div className="flex flex-wrap gap-6 text-slate-700 text-sm">
                       <div>
@@ -111,7 +111,7 @@ const PagosDashboard: React.FC<PagosDashboardProps> = ({
                       </div>
                       <div>
                         <span className="font-medium">Tarjeta: </span>
-                        <span>**** **** **** {pago.numero_tarjeta.slice(-4)}</span>
+                        <span>**** **** **** {pago.numero_tarjeta?.slice(-4) || 'N/A'}</span>
                       </div>
                       <div>
                         <span className="font-medium">Estado: </span>

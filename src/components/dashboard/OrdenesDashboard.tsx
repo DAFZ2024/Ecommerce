@@ -3,8 +3,6 @@ import { Icon } from "@iconify/react";
 import React, { useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { supabase } from "../../lib/supabaseClient";
-import Swal from "sweetalert2";
 
 // Tipos de datos
 export type Usuario = {
@@ -88,7 +86,6 @@ const OrdenesDashboard: React.FC<OrdenesDashboardProps> = ({
   // Estado local para el filtro de fecha
   const [busquedaFecha, setBusquedaFecha] = useState("");
   const [fechaDatePicker, setFechaDatePicker] = useState<Date | null>(null);
-  const [comentarios, setComentarios] = useState<{ [key: number]: string }>({});
 
   const ordenesFiltradas = ordenes.filter((orden) => {
     const usuario = usuarios.find(u => u.id_usuario === orden.id_usuario);
@@ -98,43 +95,10 @@ const OrdenesDashboard: React.FC<OrdenesDashboardProps> = ({
   });
 
   const statusOptions = [
-    { value: "pending", label: "Pendiente" },
-    { value: "processing", label: "Procesando" },
-    { value: "shipped", label: "Enviado" },
-    { value: "delivered", label: "Entregado" },
-    { value: "cancelled", label: "Cancelado" },
+    { value: "pendiente", label: "Pendiente" },
+    { value: "pagado", label: "Pagado" },
+    { value: "cancelado", label: "Cancelado" },
   ];
-
-  const handleStatusChange = async (
-    orderId: number,
-    newStatus: string,
-    usuarioId: string | null = null,
-    comentario: string = ""
-  ) => {
-    try {
-      const { error } = await supabase.from("seguimiento_pedidos").insert({
-        order_id: orderId,
-        status: newStatus,
-        comentario,
-        usuario_id: usuarioId,
-      });
-      if (error) throw error;
-      setComentarios((prev) => ({ ...prev, [orderId]: "" }));
-      await Swal.fire({
-        icon: "success",
-        title: "Estado actualizado",
-        text: "El estado y comentario fueron guardados correctamente.",
-        timer: 1800,
-        showConfirmButton: false,
-      });
-    } catch (err: any) {
-      await Swal.fire({
-        icon: "error",
-        title: "Error al actualizar el estado",
-        text: err.message || String(err),
-      });
-    }
-  };
 
   return (
     <div className="p-6">
@@ -243,7 +207,7 @@ const OrdenesDashboard: React.FC<OrdenesDashboardProps> = ({
                         </span>
                       </div>
                       <div className="text-xs text-slate-500">
-                        Tarjeta: **** **** **** {pago.numero_tarjeta.slice(-4)}
+                        Tarjeta: **** **** **** {pago.numero_tarjeta?.slice(-4) || 'N/A'}
                       </div>
                     </div>
                   )}
@@ -257,13 +221,8 @@ const OrdenesDashboard: React.FC<OrdenesDashboardProps> = ({
                       className="appearance-none border border-slate-300 rounded-lg px-3 py-2 pr-8 text-slate-800 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
                       value={orden.estado}
                       onChange={async (e) => {
-                        const newStatus = e.target.value;
-                        await handleStatusChange(
-                          orden.id_orden,
-                          newStatus,
-                          usuario?.id_usuario || null,
-                          comentarios[orden.id_orden] || ""
-                        );
+                        const newStatus = e.target.value as 'pendiente' | 'pagado' | 'cancelado';
+                        await cambiarEstadoOrden(orden.id_orden, newStatus);
                       }}
                     >
                       {statusOptions.map((opt) => (
@@ -276,14 +235,6 @@ const OrdenesDashboard: React.FC<OrdenesDashboardProps> = ({
                       <Icon icon="mdi:chevron-down" className="text-lg" />
                     </span>
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Comentario (opcional)"
-                    className="border border-slate-300 rounded-lg px-3 py-2 text-slate-800 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 w-56 transition-all"
-                    value={comentarios[orden.id_orden] || ""}
-                    onChange={e => setComentarios(prev => ({ ...prev, [orden.id_orden]: e.target.value }))}
-                    maxLength={200}
-                  />
                 </div>
                 <div className="flex gap-2 mt-2 md:mt-0">
                   <Button

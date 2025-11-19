@@ -20,6 +20,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
   const [alert, setAlert] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [usuarioLogueado, setUsuarioLogueado] = useState<any>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [emailSuggestions, setEmailSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -32,7 +33,25 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
       }
     };
     checkSession();
+    
+    // Cargar sugerencias de correos desde localStorage
+    const savedEmails = localStorage.getItem("emails");
+    if (savedEmails) {
+      setEmailSuggestions(JSON.parse(savedEmails));
+    }
   }, []);
+
+  // Función para guardar correo en localStorage si no existe
+  const saveEmailToLocalStorage = (email: string) => {
+    if (!email) return;
+    let emails = localStorage.getItem("emails");
+    let emailArr = emails ? JSON.parse(emails) : [];
+    if (!emailArr.includes(email)) {
+      emailArr.push(email);
+      localStorage.setItem("emails", JSON.stringify(emailArr));
+      setEmailSuggestions(emailArr);
+    }
+  };
 
   const showAlert = (type: "success" | "error", message: string) => {
     setAlert({ type, message });
@@ -90,7 +109,8 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
       } else {
         showAlert("success", `Bienvenido, ${usuarioExtra.nombre_completo}`);
       }
-      
+      // Guardar correo en localStorage
+      saveEmailToLocalStorage(loginData.correo);
       onLoginSuccess(data.session?.access_token || "", usuarioCombinado);
     } catch (err) {
       console.error("❌ Error al iniciar sesión:", err);
@@ -125,6 +145,8 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
         return;
       }
       showAlert("success", "✅ Registro exitoso. Ahora inicia sesión.");
+      // Guardar correo en localStorage
+      saveEmailToLocalStorage(registerData.correo);
       setActiveTab("login");
       setRegisterData({ nombre_completo: "", correo: "", contrasena: "", telefono: "", direccion: "" });
     } catch (err) {
@@ -136,6 +158,22 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
   const handleLogout = () => {
     setUsuarioLogueado(null);
     localStorage.removeItem("token");
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin + '/dashboard',
+        },
+      });
+      if (error) {
+        showAlert("error", error.message || "Error al iniciar sesión con Google");
+      }
+    } catch (err) {
+      showAlert("error", "Error de conexión con Google");
+    }
   };
 
   if (checkingSession) {
@@ -307,7 +345,13 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
                         onChange={(e) => setLoginData({ ...loginData, correo: e.target.value })}
                         startContent={<Icon icon="lucide:mail" className="text-gray-400" />}
                         variant="bordered"
+                        list="email-suggestions"
                       />
+                      <datalist id="email-suggestions">
+                        {emailSuggestions.map((email) => (
+                          <option value={email} key={email} />
+                        ))}
+                      </datalist>
                       <Input
                         label="Contraseña"
                         type="password"
@@ -325,6 +369,16 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
                       >
                         <Icon icon="lucide:log-in" className="mr-2" />
                         Iniciar Sesión
+                      </Button>
+                      <Button
+                        fullWidth
+                        color="default"
+                        onClick={handleGoogleLogin}
+                        className="flex items-center justify-center gap-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 mt-2"
+                        type="button"
+                      >
+                        <Icon icon="logos:google-icon" className="text-lg" />
+                        Iniciar sesión con Google
                       </Button>
                     </div>
                   </Tab>
@@ -347,7 +401,13 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
                         onChange={(e) => setRegisterData({ ...registerData, correo: e.target.value })}
                         startContent={<Icon icon="lucide:mail" className="text-gray-400" />}
                         variant="bordered"
+                        list="email-suggestions"
                       />
+                      <datalist id="email-suggestions">
+                        {emailSuggestions.map((email) => (
+                          <option value={email} key={email} />
+                        ))}
+                      </datalist>
                       <Input
                         label="Contraseña"
                         type="password"
