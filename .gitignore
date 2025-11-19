@@ -24,7 +24,9 @@ jspm_packages/
 
 # dotenv environment variables
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.example
 
 # VSCode settings
 .vscode/

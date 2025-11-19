@@ -1,0 +1,31 @@
+[build]
+  # Comando para construir la aplicación
+  command = "npm run build"
+  
+  # Directorio donde se generan los archivos de producción
+  publish = "dist"
+
+[build.environment]
+  # Versión de Node.js a usar
+  NODE_VERSION = "18"
+
+# Configuración de redirecciones para SPA (Single Page Application)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers de seguridad
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache para assets estáticos
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
