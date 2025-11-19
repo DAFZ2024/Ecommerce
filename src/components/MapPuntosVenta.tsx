@@ -181,7 +181,7 @@ export default function MapPuntosVenta() {
   return (
     <div className="w-full max-w-7xl mx-auto my-6 bg-white rounded-2xl shadow-xl overflow-hidden border border-indigo-200">
       {/* Header con gradiente colorido */}
-      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-5 sm:p-6 text-white relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20"></div>
         <div className="relative">
           <div className="flex items-center justify-between mb-3">
@@ -190,7 +190,7 @@ export default function MapPuntosVenta() {
                 <MapPin className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-2xl font-semibold mb-1">Nuestros Puntos de Venta</h2>
+                <h2 className="text-xl sm:text-2xl font-semibold mb-1">Nuestros Puntos de Venta</h2>
                 <p className="text-indigo-200 text-sm">📍 Bogotá, Colombia - Encuentra tu sucursal más cercana</p>
               </div>
             </div>
@@ -203,10 +203,10 @@ export default function MapPuntosVenta() {
           </div>
         </div>
       </div>
-      <div className={`grid transition-all duration-500 ${isFullscreen ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-0`}>
+      <div className={`grid transition-all duration-500 ${isFullscreen ? 'grid-cols-1' : 'lg:grid-cols-3'} gap-4`}>
         {/* Lista de tiendas */}
-        <div className={`bg-gradient-to-b from-slate-50 to-indigo-50 p-6 overflow-y-auto transition-all duration-500 ${
-          isFullscreen ? 'hidden' : 'lg:col-span-1 max-h-[700px]'
+        <div className={`bg-gradient-to-b from-slate-50 to-indigo-50 px-4 py-4 sm:p-6 overflow-y-auto transition-all duration-500 ${
+          isFullscreen ? 'hidden' : 'lg:col-span-1 max-h-[60vh] sm:max-h-[700px]'
         }`}>
           <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
             <div className="w-6 h-6 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center">
@@ -276,7 +276,7 @@ export default function MapPuntosVenta() {
         </div>
         {/* Mapa real con React Leaflet */}
         <div className={`relative transition-all duration-500 ${
-          isFullscreen ? 'col-span-1 h-[85vh]' : 'lg:col-span-2 h-[700px]'
+          isFullscreen ? 'col-span-1 h-[85vh]' : 'lg:col-span-2 h-[420px] sm:h-[520px] lg:h-[700px]'
         }`}>
           <MapContainer
             center={mapCenter}
@@ -330,7 +330,7 @@ export default function MapPuntosVenta() {
             )}
           </MapContainer>
           {/* Panel de información del mapa */}
-          <div className="absolute top-4 right-4 z-40">
+          <div className="hidden sm:block absolute top-4 right-4 z-40">
             <div className="bg-white/95 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-indigo-200">
               <div className="text-center">
                 <h4 className="font-medium text-gray-800 mb-1">🛰️ Vista Satelital</h4>
@@ -348,8 +348,15 @@ export default function MapPuntosVenta() {
               </div>
             </div>
           </div>
+          {/* Versión compacta del panel para pantallas pequeñas */}
+          <div className="sm:hidden absolute top-4 left-1/2 transform -translate-x-1/2 z-40 w-[92%]">
+            <div className="bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-md border border-indigo-100 text-center text-xs">
+              <div className="font-medium text-gray-800 truncate">{selectedStore ? `📍 ${selectedStore.nombre}` : 'Selecciona una ubicación'}</div>
+              <div className="text-gray-500 text-[11px] mt-1">Bogotá D.C., Colombia • Zoom: 12</div>
+            </div>
+          </div>
           {/* Indicador GPS */}
-          <div className="absolute bottom-4 left-4 z-40">
+          <div className="hidden sm:block absolute bottom-4 left-4 z-40">
             <div className="bg-white/95 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg text-xs text-gray-600 border border-green-200">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -357,10 +364,18 @@ export default function MapPuntosVenta() {
               </div>
             </div>
           </div>
+          <div className="sm:hidden absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40">
+            <div className="bg-white/95 backdrop-blur-sm px-3 py-2 rounded-full shadow text-[12px] text-gray-700 border border-green-100">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="font-medium">GPS</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       {/* Footer colorido */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-8 border-t border-indigo-200">
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 px-4 py-6 sm:p-8 border-t border-indigo-200">
         <div className="grid md:grid-cols-4 gap-6 text-center">
           <div className="flex flex-col items-center group">
             <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mb-3 shadow-lg group-hover:from-blue-600 group-hover:to-indigo-600 transition-all duration-300">

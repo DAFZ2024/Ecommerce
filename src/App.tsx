@@ -152,6 +152,7 @@ function AppWrapper() {
   const [showOfferModal, setShowOfferModal] = React.useState(false);
   const [bestOfferProduct, setBestOfferProduct] = React.useState<Product | null>(null);
   const [navbarTransparent, setNavbarTransparent] = React.useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [chatResetFlag, setChatResetFlag] = React.useState(false);
   const location = useLocation();
 
@@ -251,6 +252,11 @@ function AppWrapper() {
     return () => clearTimeout(timer);
   }
 }, [location.pathname]);
+
+  // Cerrar menú móvil al cambiar de ruta
+  React.useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
 
 
@@ -497,10 +503,19 @@ function AppWrapper() {
           maxWidth="xl"
           className={`fixed top-0 left-0 w-full z-50 shadow-sm transition-all duration-300 ${navbarTransparent ? 'bg-white/70 backdrop-blur-md' : 'bg-white'} border-b border-gray-100`}
         >
-          <NavbarBrand>
-            <Icon icon="lucide:car" className="text-primary text-2xl" />
-            <p className="font-bold text-inherit ml-2">AutoPartesBogota</p>
-          </NavbarBrand>
+          <NavbarBrand className="flex items-center">
+              <Button
+                isIconOnly
+                variant="ghost"
+                aria-label="Abrir menú"
+                onPress={() => setIsMobileMenuOpen((s) => !s)}
+                className="sm:hidden mr-2"
+              >
+                <Icon icon={isMobileMenuOpen ? "lucide:x" : "lucide:menu"} className="text-2xl" />
+              </Button>
+              <Icon icon="lucide:car" className="text-primary text-2xl" />
+              <p className="font-bold text-inherit ml-2">AutoPartesBogota</p>
+            </NavbarBrand>
           <NavbarContent className="hidden sm:flex gap-4" justify="center">
             <NavbarItem>
               <Link as={RouterLink} to="/">
@@ -542,6 +557,7 @@ function AppWrapper() {
 
             
           </NavbarContent>
+          
           <NavbarContent justify="end">
             <NavbarItem className="hidden sm:flex">
               <div className="relative search-container">
@@ -680,6 +696,78 @@ function AppWrapper() {
           </NavbarContent>
         </Navbar>
         <div className="h-[72px] sm:h-[80px]" /> {/* Espacio para el navbar fijo */}
+        {/* Mobile menu overlay con efecto blur y animación */}
+        <div className="sm:hidden">
+          {/* Overlay: empieza justo debajo del navbar para no taparlo */}
+          <div
+            className={`fixed inset-x-0 top-[72px] bottom-0 z-40 transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+            aria-hidden={!isMobileMenuOpen}
+          >
+            {/* Fondo translucido con blur */}
+            <div
+              className={`absolute inset-0 bg-black/25 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+
+            {/* Panel deslizante desde arriba (debajo del navbar) */}
+            <div className={`relative max-h-[calc(100vh-72px)] overflow-auto transform transition-transform duration-300 ${isMobileMenuOpen ? 'translate-y-0' : '-translate-y-4 opacity-0'} `}>
+              <div className="mx-4 mt-4 bg-white/60 backdrop-blur-lg border border-gray-200 rounded-lg shadow-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Icon icon="lucide:car" className="text-primary text-2xl" />
+                    <span className="font-semibold">AutoPartesBogota</span>
+                  </div>
+                  <Button isIconOnly variant="ghost" aria-label="Cerrar menú" onPress={() => setIsMobileMenuOpen(false)}>
+                    <Icon icon="lucide:x" className="text-2xl" />
+                  </Button>
+                </div>
+                <nav className="flex flex-col gap-1">
+                  <RouterLink to="/" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-3 rounded-lg hover:bg-gray-100 flex items-center gap-3">
+                    <Icon icon="lucide:home" /> <span>Inicio</span>
+                  </RouterLink>
+                  <RouterLink to="/productos" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-3 rounded-lg hover:bg-gray-100 flex items-center gap-3">
+                    <Icon icon="lucide:box" /> <span>Productos</span>
+                  </RouterLink>
+                  <RouterLink to="/ofertas" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-3 rounded-lg hover:bg-gray-100 flex items-center gap-3">
+                    <Icon icon="lucide:tag" /> <span>Ofertas</span>
+                  </RouterLink>
+                  <RouterLink to="/contacto" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-3 rounded-lg hover:bg-gray-100 flex items-center gap-3">
+                    <Icon icon="lucide:phone" /> <span>Contacto</span>
+                  </RouterLink>
+                  {isLoggedIn && user && user.rol === "cliente" && (
+                    <RouterLink to="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-3 rounded-lg hover:bg-gray-100 flex items-center gap-3">
+                      <Icon icon="lucide:user-check" /> <span>Dashboard</span>
+                    </RouterLink>
+                  )}
+                  {isAdmin() && (
+                    <RouterLink to="/CrudDashboard" onClick={() => setIsMobileMenuOpen(false)} className="py-3 px-3 rounded-lg hover:bg-gray-100 flex items-center gap-3">
+                      <Icon icon="lucide:settings" /> <span>Admin</span>
+                    </RouterLink>
+                  )}
+                </nav>
+
+                <div className="mt-4 pt-3 border-t">
+                  {isLoggedIn && user ? (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <img src={user.avatar_url || user.foto_perfil || '/placeholder-profile.png'} alt="avatar" className="w-10 h-10 rounded-full object-cover" onError={(e)=>{(e.target as HTMLImageElement).src='/placeholder-profile.png'}} />
+                        <div>
+                          <div className="text-sm font-medium">{user.nombre_completo}</div>
+                          <div className="text-xs text-gray-500">{user.email}</div>
+                        </div>
+                      </div>
+                      <Button size="sm" color="danger" onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}>Cerrar</Button>
+                    </div>
+                  ) : (
+                    <Button as={RouterLink} to="/auth" color="primary" variant="flat" onClick={() => setIsMobileMenuOpen(false)} className="w-full">
+                      Mi Cuenta
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       <main className="flex-grow">
         <Routes>
           <Route path="/" element={<MainHome addToCart={addToCart} />} />

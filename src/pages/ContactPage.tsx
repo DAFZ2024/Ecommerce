@@ -97,7 +97,7 @@ export const ContactPage: React.FC = () => {
   ];
 
   return (
-    <section className="py-16 px-4 bg-gradient-to-br from-content1 via-content1 to-default-50 min-h-screen">
+    <section className="py-12 sm:py-16 px-4 bg-gradient-to-br from-content1 via-content1 to-default-50 min-h-screen">
       <div className="container mx-auto max-w-7xl">
         {/* Header Section */}
         <div className="text-center mb-16">
@@ -107,17 +107,17 @@ export const ContactPage: React.FC = () => {
               className="w-8 h-8 text-primary"
             />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary-600 bg-clip-text text-transparent">
             Contáctanos
           </h1>
-          <p className="text-xl text-default-500 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl text-default-500 max-w-2xl mx-auto leading-relaxed">
             ¿Tienes preguntas o deseas más información? Estamos aquí para
             ayudarte. Conecta con nosotros y descubre cómo podemos colaborar
             juntos.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           {/* Contact Information Cards */}
           <div className="lg:col-span-1 space-y-6">
             <h3 className="text-2xl font-bold text-default-800 mb-6">
@@ -140,10 +140,10 @@ export const ContactPage: React.FC = () => {
                       />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-default-800 mb-1">
+                      <h4 className="font-semibold text-default-800 text-sm sm:text-base mb-1">
                         {info.title}
                       </h4>
-                      <p className={`font-medium ${info.color} mb-1`}>
+                      <p className={`font-medium ${info.color} text-sm sm:text-base mb-1`}>
                         {info.value}
                       </p>
                       <p className="text-sm text-default-500">
@@ -157,11 +157,11 @@ export const ContactPage: React.FC = () => {
 
             {/* Social Media Section */}
             <Card className="border-0 shadow-lg bg-gradient-to-r from-primary/5 to-secondary/5">
-              <CardBody className="p-6">
+                <CardBody className="p-6">
                 <h4 className="font-semibold text-default-800 mb-4">
                   Síguenos en Redes Sociales
                 </h4>
-                <div className="flex space-x-4">
+                <div className="flex flex-wrap gap-3">
                   {[
                     {
                       icon: "ri:facebook-fill",
@@ -182,7 +182,7 @@ export const ContactPage: React.FC = () => {
                   ].map((social, index) => (
                     <button
                       key={index}
-                      className={`w-10 h-10 rounded-xl bg-white hover:bg-default-50 ${social.color} flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm hover:shadow-md`}
+                      className={`w-10 h-10 rounded-xl bg-white hover:bg-default-50 ${social.color} flex items-center justify-center transition-all duration-200 hover:scale-110 shadow-sm hover:shadow-md`} 
                     >
                       <Icon icon={social.icon} className="w-5 h-5" />
                     </button>
@@ -195,7 +195,7 @@ export const ContactPage: React.FC = () => {
           {/* Contact Form */}
           <div className="lg:col-span-2">
             <Card className="border-0 shadow-xl bg-white/70 backdrop-blur-sm">
-              <CardBody className="p-8 lg:p-12">
+              <CardBody className="p-6 sm:p-8 lg:p-12">
                 <div className="mb-8">
                   <h3 className="text-2xl font-bold text-default-800 mb-2">
                     Envíanos un Mensaje
@@ -262,7 +262,7 @@ export const ContactPage: React.FC = () => {
                         value={formData.mensaje}
                         onChange={handleChange}
                         placeholder="Escribe tu mensaje aquí. Cuéntanos en qué podemos ayudarte..."
-                        className="w-full p-4 pl-12 border border-default-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200 bg-white/80 resize-none"
+                        className="w-full p-4 pl-12 border border-default-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200 bg-white/80 resize-none text-sm sm:text-base"
                         required
                       />
                       <Icon
@@ -272,7 +272,7 @@ export const ContactPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
+                  <div className="flex justify-center sm:justify-end">
                     <button
                       type="submit"
                       disabled={loading}
@@ -333,7 +333,7 @@ export const ContactPage: React.FC = () => {
         </div>
 
         {/* Additional Contact Options */}
-        <div className="mt-16">
+        <div className="mt-12">
           <Card className="border-0 shadow-lg bg-gradient-to-r from-primary/5 via-transparent to-secondary/5">
             <CardBody className="p-8">
               <div className="text-center">

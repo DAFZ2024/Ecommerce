@@ -118,10 +118,10 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4">
       {/* Header de la categoría */}
       <div className="mb-8">
-        <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm text-gray-500 mb-4">
           <span 
             className="cursor-pointer hover:text-primary"
             onClick={() => navigate('/')}
@@ -131,14 +131,14 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
           <Icon icon="lucide:chevron-right" className="text-xs" />
           <span className="text-primary font-medium">{categoryName}</span>
         </div>
-        
-        <div className="flex items-center gap-4 mb-4">
-          <div className="bg-slate-700 p-3 rounded-lg">
-            <Icon icon="lucide:car" className="text-white text-2xl" />
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-4">
+          <div className="bg-slate-700 p-2 sm:p-3 rounded-lg flex items-center justify-center">
+            <Icon icon="lucide:car" className="text-white text-xl sm:text-2xl" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">{categoryName}</h1>
-            <p className="text-slate-600">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">{categoryName}</h1>
+            <p className="text-slate-600 text-sm sm:text-base">
               {products.length} producto{products.length !== 1 ? 's' : ''} encontrado{products.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -162,7 +162,7 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {products.map((product) => (
             <Card 
               key={product.id_producto} 
@@ -171,17 +171,17 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
               onPress={() => handleProductClick(product.id_producto)}
             >
               <CardBody className="p-0 overflow-hidden">
-                <div className="relative h-48 bg-white flex items-center justify-center p-4">
+                <div className="relative h-40 sm:h-48 md:h-56 bg-white flex items-center justify-center p-3 sm:p-4">
                   <img
                     src={product.imagen_url}
                     alt={product.nombre}
-                    className="max-h-full max-w-full object-contain transition-transform hover:scale-105 duration-300"
+                    className="w-full h-full object-contain max-w-[220px] transition-transform hover:scale-105 duration-300"
                   />
                   {product.en_oferta && product.descuento > 0 && (
                     <Chip 
                       color="danger" 
                       variant="flat" 
-                      className="absolute top-2 left-2" 
+                      className="absolute top-2 left-2 text-xs" 
                       size="sm"
                     >
                       -{product.descuento}%
@@ -190,19 +190,19 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
                   <Chip 
                     color="primary" 
                     variant="flat" 
-                    className="absolute top-2 right-2" 
+                    className="absolute top-2 right-2 hidden sm:inline-flex text-xs" 
                     size="sm"
                   >
                     {product.nombre_categoria}
                   </Chip>
                 </div>
                 
-                <div className="p-4">
-                  <h3 className="font-semibold text-slate-800 mb-2 line-clamp-2">
+                <div className="p-3 sm:p-4">
+                  <h3 className="font-semibold text-slate-800 mb-1 sm:mb-2 line-clamp-2 text-sm sm:text-base">
                     {product.nombre}
                   </h3>
                   
-                  <div className="flex items-center mb-3">
+                  <div className="flex items-center mb-2 text-sm">
                     <Icon icon="lucide:star" className="text-amber-500 text-sm" />
                     <span className="ml-1 text-sm text-slate-600">{product.puntuacion}</span>
                     <span className="ml-auto text-xs text-slate-500">
@@ -212,11 +212,11 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
                   
                   <div className="flex items-center justify-between">
                     <div className="flex flex-col">
-                      <span className="text-lg font-bold text-slate-800">
+                      <span className="text-base sm:text-lg font-bold text-slate-800">
                         ${Number(product.precio).toFixed(2)}
                       </span>
                       {product.en_oferta && product.descuento > 0 && (
-                        <span className="text-sm text-slate-500 line-through">
+                        <span className="text-xs sm:text-sm text-slate-500 line-through">
                           ${calculateOriginalPrice(product.precio, product.descuento).toFixed(2)}
                         </span>
                       )}
@@ -225,7 +225,7 @@ export const ProductsByCategoryPage: React.FC<ProductsByCategoryPageProps> = ({ 
                 </div>
               </CardBody>
               
-              <CardFooter className="pt-0 px-4 pb-4">
+              <CardFooter className="pt-0 px-3 sm:px-4 pb-4">
                 <Button
                   color="primary"
                   variant="flat"

@@ -79,15 +79,15 @@ const OffersCarousel: React.FC<OffersCarouselProps> = ({ offers = [] }) => {
   }
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-0 relative">
-      {/* Floating particles background */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+    <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-0 relative">
+      {/* Floating particles background (hidden on small screens) */}
+      <div className="hidden sm:block absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-2 h-2 bg-blue-400 rounded-full animate-pulse opacity-40"></div>
         <div className="absolute top-40 right-20 w-3 h-3 bg-purple-400 rounded-full animate-bounce opacity-30"></div>
         <div className="absolute bottom-32 left-20 w-2 h-2 bg-pink-400 rounded-full animate-pulse opacity-35"></div>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 items-stretch">
         {/* Lateral izquierdo - Producto 1 */}
         {sideProducts[0] && (
           <div className="hidden lg:block w-80 flex-shrink-0">
@@ -153,7 +153,7 @@ const OffersCarousel: React.FC<OffersCarouselProps> = ({ offers = [] }) => {
             <div className="absolute inset-[1px] bg-white rounded-3xl"></div>
             
             {/* Header with clean design */}
-            <div className="relative z-10 flex items-center justify-center px-8 py-6 bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-200">
+            <div className="relative z-10 flex items-center justify-center px-4 sm:px-8 py-4 sm:py-6 bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
@@ -161,18 +161,18 @@ const OffersCarousel: React.FC<OffersCarouselProps> = ({ offers = [] }) => {
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full blur-lg opacity-30 animate-pulse"></div>
                 </div>
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-blue-600 bg-clip-text text-transparent">
+                <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-blue-600 bg-clip-text text-transparent">
                   Ofertas Especiales
                 </h2>
               </div>
-              <div className="absolute right-8 flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-200">
+              <div className="absolute right-4 sm:right-8 hidden sm:flex items-center gap-2 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-200">
                 <Star className="w-4 h-4 text-yellow-500 fill-current" />
                 <span className="text-gray-700 font-medium text-sm">{current + 1} / {totalItems}</span>
               </div>
             </div>
 
             {/* Main carousel container */}
-            <div className="relative h-[500px] overflow-hidden bg-gray-50">
+            <div className="relative h-[320px] sm:h-[420px] md:h-[500px] overflow-hidden bg-gray-50">
               {/* Background image with parallax effect */}
               <div className="absolute inset-0 transition-transform duration-700 ease-out" style={{
                 transform: `translateX(-${current * 100}%)`
@@ -186,44 +186,44 @@ const OffersCarousel: React.FC<OffersCarouselProps> = ({ offers = [] }) => {
                     <img
                       src={offer.image}
                       alt={offer.title}
-                      className="max-h-[400px] max-w-full object-contain mx-auto my-auto"
+                      className="max-h-[240px] sm:max-h-[360px] md:max-h-[400px] max-w-full object-contain mx-auto my-auto"
                     />
                   </div>
                 ))}
               </div>
 
-              {/* Navigation buttons */}
+              {/* Navigation buttons (smaller on mobile) */}
               <button
-                className="absolute left-6 top-1/2 -translate-y-1/2 z-20 group/btn bg-white/95 backdrop-blur-sm hover:bg-white border border-gray-200 rounded-full p-4 transition-all duration-300 hover:scale-110 hover:shadow-lg shadow-md"
+                className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-20 group/btn bg-white/95 backdrop-blur-sm hover:bg-white border border-gray-200 rounded-full p-2 sm:p-4 transition-all duration-300 hover:scale-110 hover:shadow-lg shadow-md"
                 onClick={prev}
                 aria-label="Anterior"
               >
-                <ChevronLeft className="w-6 h-6 text-gray-700 group-hover/btn:text-blue-600 transition-colors" />
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 group-hover/btn:text-blue-600 transition-colors" />
               </button>
               
               <button
-                className="absolute right-6 top-1/2 -translate-y-1/2 z-20 group/btn bg-white/95 backdrop-blur-sm hover:bg-white border border-gray-200 rounded-full p-4 transition-all duration-300 hover:scale-110 hover:shadow-lg shadow-md"
+                className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-20 group/btn bg-white/95 backdrop-blur-sm hover:bg-white border border-gray-200 rounded-full p-2 sm:p-4 transition-all duration-300 hover:scale-110 hover:shadow-lg shadow-md"
                 onClick={next}
                 aria-label="Siguiente"
               >
-                <ChevronRight className="w-6 h-6 text-gray-700 group-hover/btn:text-blue-600 transition-colors" />
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700 group-hover/btn:text-blue-600 transition-colors" />
               </button>
 
               {/* Content overlay */}
               <div className="absolute inset-0 flex items-end justify-center z-10">
-                <div className="text-center p-8 mb-8 max-w-2xl">
+                <div className="text-center p-4 sm:p-8 mb-6 sm:mb-8 max-w-full sm:max-w-2xl">
                   {/* Discount badge */}
-                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-200 to-orange-200 text-blue-900 px-6 py-3 rounded-full font-bold text-xl mb-4 shadow-lg border border-yellow-400">
-                    <Sparkles className="w-6 h-6 text-yellow-600" />
+                  <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-200 to-orange-200 text-blue-900 px-4 py-2 rounded-full font-bold text-sm sm:text-xl mb-3 sm:mb-4 shadow-lg border border-yellow-400">
+                    <Sparkles className="w-5 h-5 text-yellow-600" />
                     <span>¡{displayOffers[current].discount}% OFF!</span>
                   </div>
                   {/* Title */}
-                  <h3 className="text-4xl font-bold text-blue-900 mb-4">
+                  <h3 className="text-2xl sm:text-4xl font-bold text-blue-900 mb-3 sm:mb-4">
                     {displayOffers[current].title}
                   </h3>
                   {/* Description */}
                   {displayOffers[current].description && (
-                    <p className="text-gray-800 text-lg font-medium max-w-md mx-auto leading-relaxed">
+                    <p className="text-gray-800 text-sm sm:text-lg font-medium max-w-md mx-auto leading-relaxed">
                       {displayOffers[current].description}
                     </p>
                   )}
@@ -231,7 +231,7 @@ const OffersCarousel: React.FC<OffersCarouselProps> = ({ offers = [] }) => {
               </div>
 
               {/* Progress indicators with circular progress */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 z-20">
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 z-20">
                 {displayOffers.map((_, idx) => (
                   <button
                     key={idx}
@@ -247,7 +247,7 @@ const OffersCarousel: React.FC<OffersCarouselProps> = ({ offers = [] }) => {
                     }`}></div>
                     
                     {/* Main circle container */}
-                    <div className={`relative w-10 h-10 rounded-full transition-all duration-300 ${
+                    <div className={`relative w-8 h-8 sm:w-10 sm:h-10 rounded-full transition-all duration-300 ${
                       idx === current 
                         ? 'scale-100' 
                         : 'scale-75 group-hover/indicator:scale-85'

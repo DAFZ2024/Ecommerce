@@ -190,14 +190,15 @@ const formatPrice = (value: number) => {
         className={`
         relative overflow-hidden bg-gradient-to-br from-white via-gray-50 to-blue-50 
         border-2 border-gradient-to-r from-blue-400 to-purple-500
-        shadow-2xl transform transition-all duration-500 
+        shadow-2xl transform transition-all duration-500
+        max-w-full sm:max-w-3xl md:max-w-4xl mx-3 sm:mx-6
         ${isVisible ? "scale-100 opacity-100" : "scale-95 opacity-0"}
       `}
       >
         {(onClose) => (
           <>
-            {/* Fondo decorativo animado */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            {/* Fondo decorativo animado (oculto en pantallas pequeñas) */}
+            <div className="hidden sm:block absolute inset-0 overflow-hidden pointer-events-none">
               <div className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-purple-500/20 rounded-full animate-pulse"></div>
               <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-gradient-to-tr from-pink-400/20 to-orange-400/20 rounded-full animate-pulse delay-1000"></div>
               <div
@@ -208,8 +209,8 @@ const formatPrice = (value: number) => {
 
             {/* Header con gradiente y efectos */}
             <div className="relative bg-gradient-to-r from-red-500 via-pink-500 to-purple-600 p-6 text-white overflow-hidden">
-              {/* Partículas decorativas */}
-              <div className="absolute inset-0">
+              {/* Partículas decorativas (ocultas en móvil) */}
+              <div className="hidden sm:block absolute inset-0">
                 {[...Array(20)].map((_, i) => (
                   <div
                     key={i}
@@ -241,11 +242,11 @@ const formatPrice = (value: number) => {
                   <Badge
                     color="warning"
                     variant="solid"
-                    className="text-black font-black px-6 py-2 text-xl animate-bounce bg-gradient-to-r from-yellow-400 to-orange-400 shadow-lg"
+                    className="text-black font-black px-4 py-2 text-lg sm:text-xl animate-bounce bg-gradient-to-r from-yellow-400 to-orange-400 shadow-lg"
                   >
                     🎉 ¡OFERTA ESPECIAL! 🎉
                   </Badge>
-                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 opacity-50 blur-md animate-pulse"></div>
+                  <div className="hidden sm:block absolute inset-0 bg-gradient-to-r from-yellow-400 to-orange-400 opacity-50 blur-md animate-pulse"></div>
                 </div>
               </div>
 
@@ -259,8 +260,8 @@ const formatPrice = (value: number) => {
               </div>
             </div>
 
-            <ModalBody className="p-8 relative z-10">
-              <div className="grid md:grid-cols-2 gap-8 items-center">
+            <ModalBody className="p-4 sm:p-8 relative z-10 overflow-auto max-h-[70vh] sm:max-h-[80vh]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-center">
                 {/* Imagen del producto mejorada */}
                 <div className="relative group">
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-2xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity duration-300"></div>
@@ -268,7 +269,7 @@ const formatPrice = (value: number) => {
                     <Image
                       src={product.imagen_url}
                       alt={product.nombre}
-                      className="w-full h-64 object-cover rounded-xl"
+                      className="w-full h-40 sm:h-64 object-cover rounded-xl"
                     />
 
                     {/* Badge de descuento mejorado */}
@@ -277,7 +278,7 @@ const formatPrice = (value: number) => {
                         <Badge
                           color="success"
                           variant="solid"
-                          className="text-white font-black text-2xl px-4 py-2 bg-gradient-to-r from-green-400 to-emerald-500 shadow-lg animate-pulse"
+                          className="text-white font-black text-lg sm:text-2xl px-3 sm:px-4 py-1 sm:py-2 bg-gradient-to-r from-green-400 to-emerald-500 shadow-lg animate-pulse"
                         >
                           -{product.descuento}%
                         </Badge>
@@ -300,13 +301,13 @@ const formatPrice = (value: number) => {
                   </div>
 
                   {/* Precios con efectos visuales */}
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-2xl border border-green-200 shadow-inner">
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 sm:p-6 rounded-2xl border border-green-200 shadow-inner">
                     <div className="text-center space-y-3">
                       <div className="flex items-center justify-center gap-4">
-                        <span className="text-4xl font-black text-green-600 animate-pulse">
+                        <span className="text-2xl sm:text-4xl font-black text-green-600 animate-pulse">
                           ${precioFinal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}
                         </span>
-                        <span className="text-xl text-gray-500 line-through opacity-70">
+                        <span className="text-lg sm:text-xl text-gray-500 line-through opacity-70">
                           ${precioOriginal.toLocaleString("es-CO", { maximumFractionDigits: 0 })}
                         </span>
                       </div>
@@ -318,13 +319,13 @@ const formatPrice = (value: number) => {
                   </div>
 
                   {/* Rating mejorado */}
-                  <div className="flex items-center justify-center gap-3 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                  <div className="flex items-center justify-center gap-3 p-3 sm:p-4 bg-yellow-50 rounded-xl border border-yellow-200">
                     <div className="flex gap-1">
                       {[...Array(5)].map((_, i) => (
                         <Icon
                           key={i}
                           icon="lucide:star"
-                          className={`text-2xl transition-all duration-300 ${
+                          className={`text-lg sm:text-2xl transition-all duration-300 ${
                             i < product.puntuacion
                               ? "text-yellow-400 fill-current transform hover:scale-110"
                               : "text-gray-300"
@@ -354,13 +355,13 @@ const formatPrice = (value: number) => {
               </div>
             </ModalBody>
 
-            <ModalFooter className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 border-t border-gray-200">
-              <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
+            <ModalFooter className="bg-gradient-to-r from-gray-50 to-blue-50 p-4 sm:p-6 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row gap-3 w-full justify-center">
                 <Button
                   color="default"
                   variant="bordered"
                   onPress={onClose}
-                  className="min-w-40 h-12 font-semibold border-2 hover:scale-105 transition-transform"
+                  className="w-full sm:w-auto min-w-0 sm:min-w-[140px] h-12 font-semibold border-2 hover:scale-105 transition-transform"
                   startContent={<Icon icon="lucide:x" />}
                 >
                   Cerrar
@@ -370,7 +371,7 @@ const formatPrice = (value: number) => {
                   color="primary"
                   variant="shadow"
                   onPress={handleAddToCart}
-                  className="min-w-40 h-12 font-bold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 hover:scale-105 transition-all duration-300 shadow-lg"
+                  className="w-full sm:w-auto min-w-0 sm:min-w-[160px] h-12 font-bold text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 hover:scale-105 transition-all duration-300 shadow-lg"
                   startContent={
                     <Icon icon="lucide:shopping-cart" className="text-lg" />
                   }
@@ -382,7 +383,7 @@ const formatPrice = (value: number) => {
                   color="warning"
                   variant="shadow"
                   onPress={handleViewProduct}
-                  className="min-w-40 h-12 font-bold text-white bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 hover:scale-105 transition-all duration-300 shadow-lg"
+                  className="w-full sm:w-auto min-w-0 sm:min-w-[160px] h-12 font-bold text-white bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 hover:scale-105 transition-all duration-300 shadow-lg"
                   startContent={<Icon icon="lucide:eye" className="text-lg" />}
                 >
                   Ver Detalles

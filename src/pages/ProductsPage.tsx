@@ -36,43 +36,36 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ addToCart }) => {
   // Traer categorías desde Supabase
   useEffect(() => {
     const fetchCategories = async () => {
-      const { data, error } = await supabase
-        .from('categorias')
-        .select('id_categoria, nombre_categoria, imagen_url');
-      if (!error && data) {
-        setCategories(data);
-      } else {
+      try {
+        const { data, error } = await supabase
+          .from('categorias')
+          .select('id_categoria, nombre_categoria, imagen_url');
+        if (!error && data) {
+          setCategories(data);
+        }
+      } catch (err) {
+        console.error('Error al traer categorías:', err);
         setCategories([]);
+
       }
+      fetchCategories();
     };
     fetchCategories();
   }, []);
 
+  // Traer productos por categoría
   useEffect(() => {
-    if (!selectedCategoryId) {
-      setProducts([]);
-      return;
-    }
-    
     const fetchProductsByCategory = async () => {
-      setLoading(true);
+      if (selectedCategoryId === null) {
+        setProducts([]);
+        return;
+      }
       try {
         const { data, error } = await supabase
           .from('productos')
-          .select(`
-            *,
-            categorias!inner(
-              id_categoria,
-              nombre_categoria
-            )
-          `)
+          .select(`*, categorias!inner(id_categoria, nombre_categoria)`)
           .eq('id_categoria', selectedCategoryId);
-
-        if (error) {
-          console.error('Error fetching products:', error);
-          setProducts([]);
-        } else {
-          // Transformar los datos para mantener compatibilidad con la interfaz Product
+        if (!error && data) {
           const transformedProducts: Product[] = data.map((item: any) => ({
             id_producto: item.id_producto,
             nombre: item.nombre,
@@ -89,13 +82,9 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({ addToCart }) => {
           setProducts(transformedProducts);
         }
       } catch (err) {
-        console.error('Error:', err);
         setProducts([]);
-      } finally {
-        setLoading(false);
       }
     };
-
     fetchProductsByCategory();
   }, [selectedCategoryId]);
 

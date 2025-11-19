@@ -81,31 +81,31 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
   const regularOffers = offers.slice(3);
 
   return (
-    <section className="py-12 px-4 bg-gradient-to-br from-primary-50 to-primary-100 min-h-screen">
+    <section className="py-8 sm:py-12 px-4 bg-gradient-to-br from-primary-50 to-primary-100 min-h-screen">
       <div className="container mx-auto">
-        <h2 className="text-3xl font-bold mb-2 text-center">Todas las Ofertas Especiales</h2>
-        <p className="text-default-500 text-center mb-10">
+        <h2 className="text-2xl sm:text-3xl font-bold mb-2 text-center">Todas las Ofertas Especiales</h2>
+        <p className="text-default-500 text-center mb-8 text-sm sm:text-base">
           Encuentra descuentos exclusivos por tiempo limitado
         </p>
 
         {loading ? (
-          <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mx-auto mb-6"></div>
-            <p className="text-default-500 text-xl">Cargando ofertas especiales...</p>
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-primary mx-auto mb-4"></div>
+            <p className="text-default-500 text-lg">Cargando ofertas especiales...</p>
           </div>
         ) : offers.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-32 h-32 bg-default-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Icon icon="lucide:percent" className="text-6xl text-default-400" />
+          <div className="text-center py-12">
+            <div className="w-24 h-24 bg-default-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Icon icon="lucide:percent" className="text-5xl text-default-400" />
             </div>
-            <h3 className="text-2xl font-bold text-default-600 mb-4">No hay ofertas disponibles</h3>
-            <p className="text-default-400 text-lg">¡Pero pronto tendremos descuentos increíbles para ti!</p>
+            <h3 className="text-xl sm:text-2xl font-bold text-default-600 mb-3">No hay ofertas disponibles</h3>
+            <p className="text-default-400 text-base">¡Pero pronto tendremos descuentos increíbles para ti!</p>
           </div>
         ) : (
           <>
             {/* Mejores 3 ofertas - Destacadas */}
             {topOffers.length > 0 && (
-              <div className="mb-12">
+              <div className="mb-8">
                 <div className="flex items-center justify-center gap-2 mb-6">
                   <Icon icon="lucide:crown" className="text-amber-500 text-2xl" />
                   <h3 className="text-2xl font-bold text-center bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent">
@@ -113,7 +113,7 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
                   </h3>
                   <Icon icon="lucide:crown" className="text-amber-500 text-2xl" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {topOffers.map((product, index) => (
                     <FeaturedOfferCard 
                       key={product.id_producto} 
@@ -129,10 +129,10 @@ export const OffersPage: React.FC<OffersPageProps> = ({ addToCart }) => {
             {/* Resto de ofertas */}
             {regularOffers.length > 0 && (
               <div>
-                <h3 className="text-xl font-semibold mb-6 text-center text-default-700">
+                <h3 className="text-lg sm:text-xl font-semibold mb-6 text-center text-default-700">
                   Más Ofertas Disponibles
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                   {regularOffers.map((product) => (
                     <OfferCard 
                       key={product.id_producto} 
@@ -184,7 +184,7 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
       </div>
 
       <CardBody className="p-0 overflow-hidden">
-        <div className="relative h-52 bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center">
+        <div className="relative h-44 md:h-52 bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center">
           <img
             src={product.imagen_url}
             alt={product.nombre}
@@ -200,7 +200,7 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
         </div>
         
         <div className="p-4 bg-gradient-to-br from-white to-amber-50">
-          <h3 className="font-bold text-lg mb-2 text-gray-800">{product.nombre}</h3>
+          <h3 className="font-bold text-base sm:text-lg mb-2 text-gray-800">{product.nombre}</h3>
           
           <div className="flex items-center mb-3">
             <div className="flex">
@@ -208,15 +208,15 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
                 <Icon 
                   key={i}
                   icon="lucide:star" 
-                  className={`text-lg ${i < Math.floor(product.puntuacion) ? 'text-amber-400' : 'text-gray-300'}`}
+                  className={`text-sm sm:text-base ${i < Math.floor(product.puntuacion) ? 'text-amber-400' : 'text-gray-300'}`}
                 />
               ))}
             </div>
             <span className="text-sm ml-2 font-medium">({product.puntuacion})</span>
           </div>
           
-          <div className="flex items-center gap-3 mb-3">
-            <p className="text-2xl font-bold text-green-600">
+            <div className="flex items-center gap-3 mb-3">
+            <p className="text-xl sm:text-2xl font-bold text-green-600">
               ${Number(product.precio).toFixed(2)}
             </p>
             {discountPercentage > 0 && (
@@ -224,7 +224,7 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
                 <p className="text-gray-500 text-sm line-through">
                   ${(Number(product.precio) / (1 - discountPercentage / 100)).toFixed(2)}
                 </p>
-                <p className="text-green-600 text-xs font-semibold">
+                <p className="text-green-600 text-xs sm:text-sm font-semibold">
                   Ahorras ${((Number(product.precio) / (1 - discountPercentage / 100)) - Number(product.precio)).toFixed(2)}
                 </p>
               </div>
@@ -234,7 +234,7 @@ const FeaturedOfferCard: React.FC<FeaturedOfferCardProps> = ({ product, addToCar
           <div className="mt-3">
             <div className="flex justify-between text-sm mb-2">
               <span className="font-medium">Stock disponible</span>
-              <span className="text-red-600 font-bold animate-pulse">
+              <span className="text-red-600 font-bold animate-pulse text-sm sm:text-base">
                 ¡Solo {stockLeft} restantes!
               </span>
             </div>
@@ -278,7 +278,7 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
   return (
     <Card className="border border-default-200 hover:shadow-lg transition-shadow duration-300">
       <CardBody className="p-0 overflow-hidden">
-        <div className="relative h-48 bg-white flex items-center justify-center">
+        <div className="relative h-40 md:h-48 bg-white flex items-center justify-center">
           <img
             src={product.imagen_url}
             alt={product.nombre}
@@ -291,13 +291,13 @@ const OfferCard: React.FC<OfferCardProps> = ({ product, addToCart }) => {
           )}
         </div>
         <div className="p-4">
-          <h3 className="font-medium text-base mb-1">{product.nombre}</h3>
+          <h3 className="font-medium text-sm sm:text-base mb-1">{product.nombre}</h3>
           <div className="flex items-center mb-2">
             <Icon icon="lucide:star" className="text-amber-500 text-sm" />
             <span className="text-sm ml-1">{product.puntuacion}</span>
           </div>
           <div className="flex items-center gap-2 mb-2">
-            <p className="text-primary font-semibold">${Number(product.precio).toFixed(2)}</p>
+            <p className="text-primary font-semibold text-sm sm:text-base">${Number(product.precio).toFixed(2)}</p>
             {discountPercentage > 0 && (
               <p className="text-default-400 text-sm line-through">
                 ${(Number(product.precio) / (1 - discountPercentage / 100)).toFixed(2)}

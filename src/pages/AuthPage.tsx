@@ -188,32 +188,32 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 relative overflow-hidden">
       {/* Elementos decorativos animados */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse delay-1000"></div>
-        <div className="absolute top-40 left-40 w-60 h-60 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse delay-2000"></div>
+        <div className="hidden sm:block absolute -top-40 -right-40 w-72 h-72 md:w-80 md:h-80 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse"></div>
+        <div className="hidden sm:block absolute -bottom-40 -left-40 w-72 h-72 md:w-80 md:h-80 bg-purple-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse delay-1000"></div>
+        <div className="hidden md:block absolute top-40 left-40 w-48 h-48 md:w-60 md:h-60 bg-pink-400 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-pulse delay-2000"></div>
       </div>
 
       {/* Iconos flotantes animados */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-20 left-20 animate-bounce delay-300">
+        <div className="hidden sm:block absolute top-20 left-20 animate-bounce delay-300">
           <Icon icon="lucide:car" className="text-blue-400 text-2xl opacity-20" />
         </div>
-        <div className="absolute top-32 right-32 animate-bounce delay-700">
+        <div className="hidden sm:block absolute top-32 right-32 animate-bounce delay-700">
           <Icon icon="lucide:wrench" className="text-purple-400 text-2xl opacity-20" />
         </div>
-        <div className="absolute bottom-32 left-32 animate-bounce delay-1000">
+        <div className="hidden md:block absolute bottom-32 left-32 animate-bounce delay-1000">
           <Icon icon="lucide:settings" className="text-pink-400 text-2xl opacity-20" />
         </div>
-        <div className="absolute bottom-20 right-20 animate-bounce delay-1500">
+        <div className="hidden md:block absolute bottom-20 right-20 animate-bounce delay-1500">
           <Icon icon="lucide:truck" className="text-indigo-400 text-2xl opacity-20" />
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
-        <div className="max-w-6xl w-full grid md:grid-cols-2 gap-8 items-center">
+      <div className="relative z-10 flex items-center justify-center min-h-screen p-4 sm:py-8">
+        <div className="max-w-5xl w-full grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-center px-2 sm:px-4">
           
           {/* Sección de bienvenida e información */}
-          <div className="space-y-8 text-center md:text-left">
+          <div className="space-y-8 text-center md:text-left order-2 md:order-1">
             <div className="animate-fade-in-up">
               <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 AutoPartes Bogotá
@@ -226,7 +226,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
             {/* Beneficios para login */}
             {activeTab === "login" && (
               <div className="animate-fade-in-up delay-300 space-y-6">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-lg border border-white/20">
                   <h3 className="text-2xl font-semibold text-gray-800 mb-4">
                     ¡Bienvenido de vuelta! 🚗
                   </h3>
@@ -255,7 +255,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
             {/* Beneficios para registro */}
             {activeTab === "register" && (
               <div className="animate-fade-in-up delay-300 space-y-6">
-                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 sm:p-6 shadow-lg border border-white/20">
                   <h3 className="text-2xl font-semibold text-gray-800 mb-4">
                     ¡Únete a nuestra familia! 🎉
                   </h3>
@@ -279,7 +279,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
                   </div>
                 </div>
                 
-                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl p-6 shadow-lg">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl p-4 sm:p-6 shadow-lg">
                   <h4 className="text-lg font-semibold mb-2">🎁 Oferta especial de bienvenida</h4>
                   <p className="text-sm opacity-90">
                     Regístrate hoy y recibe un kit de herramientas básicas GRATIS con tu primera compra mayor a $100.000
@@ -290,14 +290,14 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
           </div>
 
           {/* Formulario de autenticación */}
-          <div className="w-full max-w-md mx-auto">
-            <div className="bg-white/90 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-white/20 animate-fade-in-up delay-500">
+          <div className="w-full max-w-md mx-auto order-1 md:order-2">
+            <div className="bg-white/90 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-2xl border border-white/20 animate-fade-in-up delay-500">
               <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">
                 Bienvenido
               </h2>
 
               {alert && (
-                <div className={`p-4 mb-6 rounded-xl text-white font-medium animate-bounce ${
+                <div className={`p-3 sm:p-4 mb-6 rounded-xl text-white font-medium animate-bounce ${
                   alert.type === "success" ? "bg-green-500" : "bg-red-500"
                 }`}>
                   <div className="flex items-center gap-2">
@@ -309,7 +309,7 @@ export function AuthPage({ onLoginSuccess }: AuthPageProps) {
 
               {usuarioLogueado ? (
                 <div className="text-center space-y-4 animate-fade-in-up">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Icon icon="lucide:user" className="text-white text-2xl" />
                   </div>
                   <p className="text-lg font-medium">
